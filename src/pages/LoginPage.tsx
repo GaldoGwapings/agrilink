@@ -1,7 +1,7 @@
 import { useState, FormEvent } from "react";
 import { motion } from "framer-motion";
 import { Sprout, ShoppingBag, ArrowRight, User as UserIcon } from "lucide-react";
-import { User } from "../types";
+import type { User } from "../types";
 import { cn } from "@/lib/utils";
 
 interface LoginPageProps {

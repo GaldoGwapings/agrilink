@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Sprout, TrendingUp, ShieldCheck, MapPin, ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "../lib/utils"
+import Navbar from '../components/Navbar' 
 
 export default function LandingPage({ user }: { user?: any }) {
   const features = [
@@ -37,6 +38,8 @@ export default function LandingPage({ user }: { user?: any }) {
   const isFarmer = user?.role === 'farmer';
 
   return (
+      <>-
+    <Navbar user={user} />
     <div className="space-y-24 pb-20">
       {/* Hero Section */}
       <section className="relative min-h-[80vh] flex items-center rounded-[48px] overflow-hidden my-6 border border-[#E5EAD7]">
@@ -271,6 +274,7 @@ export default function LandingPage({ user }: { user?: any }) {
         </section>
       )}
     </div>
+    </> 
   );
 }
 

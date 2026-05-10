@@ -1,8 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
 import { Sprout, Map, LayoutDashboard, User as UserIcon, Bell } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { User } from "../types";
-import { MOCK_BUYER_LEADS } from "@/mockData";
+import { cn } from "../lib/utils";
+import type { User } from "../types";
+import { MOCK_BUYER_LEADS } from "../mockData";
 
 interface NavbarProps {
   user: User | null;

@@ -1,5 +1,6 @@
-import { Leaf, Facebook, Twitter, Instagram, Mail, Phone, MapPin } from "lucide-react";
+import { FaFacebook, FaTwitter, FaInstagram } from 'react-icons/fa'
 import { Link } from "react-router-dom";
+import { Leaf, Phone, MapPin, Mail } from 'lucide-react'
 
 export default function Footer() {
   return (
@@ -18,13 +19,13 @@ export default function Footer() {
             </p>
             <div className="flex gap-4">
               <a href="#" className="w-10 h-10 bg-[#F1F4E8] rounded-full flex items-center justify-center text-[#4D7C0F] hover:bg-[#4D7C0F] hover:text-white transition-all">
-                <Facebook className="w-5 h-5" />
+                <FaFacebook className="w-5 h-5" />
               </a>
               <a href="#" className="w-10 h-10 bg-[#F1F4E8] rounded-full flex items-center justify-center text-[#4D7C0F] hover:bg-[#4D7C0F] hover:text-white transition-all">
-                <Twitter className="w-5 h-5" />
+                <FaTwitter className="w-5 h-5" />
               </a>
               <a href="#" className="w-10 h-10 bg-[#F1F4E8] rounded-full flex items-center justify-center text-[#4D7C0F] hover:bg-[#4D7C0F] hover:text-white transition-all">
-                <Instagram className="w-5 h-5" />
+                <FaInstagram className="w-5 h-5" />
               </a>
             </div>
           </div>

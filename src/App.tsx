@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
-import Auth from './pages/Auth'
+import LandingPage from './pages/LandingPage'
+import LoginPage from './pages/LoginPage'
 import FarmerDashboard from './pages/FarmerDashboard'
 import BuyerDashboard from './pages/BuyerDashboard'
-import LandingPage from './pages/LandingPage'
 
 const MOCK_USER = {
   id: 'u-1',
@@ -14,29 +15,29 @@ const MOCK_USER = {
 
 function App() {
   const [session, setSession] = useState<any>(null)
-  const [currentPage, setCurrentPage] = useState('landing')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      if (session) setCurrentPage('farmer')
+      setLoading(false)
     })
     supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
-      if (session) setCurrentPage('farmer')
-      else setCurrentPage('landing')
     })
   }, [])
 
-  if (!session) {
-    if (currentPage === 'auth') return <Auth />
-    return <LandingPage />
-  }
+  if (loading) return <div className="flex items-center justify-center h-screen">Loading...</div>
 
-  if (currentPage === 'buyer') return <BuyerDashboard user={MOCK_USER} />
-  return <FarmerDashboard user={MOCK_USER} />
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={session ? <Navigate to="/farmer" /> : <LoginPage />} />
+      <Route path="/farmer" element={session ? <FarmerDashboard user={MOCK_USER} /> : <Navigate to="/login" />} />
+      <Route path="/buyer" element={session ? <BuyerDashboard user={MOCK_USER} /> : <Navigate to="/login" />} />
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
+  )
 }
 
 export default App
-
-
