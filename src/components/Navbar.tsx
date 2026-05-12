@@ -31,7 +31,7 @@ export default function Navbar({ user, setUser, onLogout }: NavbarProps) {
   const navItems = [
   { 
     name: "Home", 
-    path: user?.role === 'farmer' ? '/farmer/home' : '/', 
+    path: user?.role === 'farmer' ? '/farmer/home' : user?.role === 'buyer' ? '/buyer/home' : '/', 
     icon: Sprout 
   },
   ...(user?.role === 'farmer' ? [{ name: "My Harvests", path: "/farmer", icon: LayoutDashboard }] : []),
