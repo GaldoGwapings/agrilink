@@ -10,7 +10,7 @@ interface HarvestCardProps {
   onDelete?: (id: string) => void;
   onEdit?: (harvest: Harvest) => void;
   onViewDetails?: (harvest: Harvest) => void;
-  variant?: 'grid' | 'list';
+  variant?: 'grid' | 'list';  
   key?: string | number;
 }
 

@@ -155,7 +155,7 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
                 className="relative cursor-pointer group"
               >
                 {imagePreview ? (
-                  <div className="relative aspect-video rounded-2xl overflow-hidden border-2 border-[#4D7C0F]">
+                  <div className="relative h-60 rounded-2xl overflow-hidden border-2 border-[#4D7C0F]">
                     <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <p className="text-white font-bold text-sm">Change Image</p>
@@ -172,7 +172,7 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
                     </button>
                   </div>
                 ) : (
-                  <div className="aspect-video rounded-2xl border-2 border-dashed border-[#E5EAD7] bg-[#FDFCF8] flex flex-col items-center justify-center space-y-3 hover:border-[#4D7C0F] hover:bg-[#ECFCCB]/20 transition-all">
+                  <div className="h-60 rounded-2xl border-2 border-dashed border-[#E5EAD7] bg-[#FDFCF8] flex flex-col items-center justify-center space-y-3 hover:border-[#4D7C0F] hover:bg-[#ECFCCB]/20 transition-all">
                     <div className="w-12 h-12 bg-[#F1F4E8] rounded-full flex items-center justify-center text-[#5B6D44] group-hover:text-[#4D7C0F] transition-colors">
                       <Upload className="w-6 h-6" />
                     </div>

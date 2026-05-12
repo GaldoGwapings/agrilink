@@ -1,43 +1,36 @@
-import { useEffect, useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { supabase } from './lib/supabase'
+import { Routes, Route } from 'react-router-dom'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import FarmerDashboard from './pages/FarmerDashboard'
 import BuyerDashboard from './pages/BuyerDashboard'
+import InterestedBuyersPage from './pages/InterestedBuyersPage'
 
-const MOCK_USER = {
+const MOCK_FARMER = {
   id: 'u-1',
   name: 'Juan Dela Cruz',
   region: 'Bukidnon',
   role: 'farmer' as const,
 }
 
+const MOCK_BUYER = {
+  id: 'u-2',
+  name: 'Juan Dela Cruz',
+  region: 'Bukidnon',
+  role: 'buyer' as const,
+}
+
 function App() {
-  const [session, setSession] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setLoading(false)
-    })
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
-  }, [])
-
-  if (loading) return <div className="flex items-center justify-center h-screen">Loading...</div>
-
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
-      <Route path="/login" element={session ? <Navigate to="/farmer" /> : <LoginPage />} />
-      <Route path="/farmer" element={session ? <FarmerDashboard user={MOCK_USER} /> : <Navigate to="/login" />} />
-      <Route path="/buyer" element={session ? <BuyerDashboard user={MOCK_USER} /> : <Navigate to="/login" />} />
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/farmer" element={<FarmerDashboard user={MOCK_USER} />} />
+      <Route path="/farmer/home" element={<LandingPage isLoggedInFarmer={true} user={MOCK_USER} />} />
+      <Route path="/farmer/interested-buyers" element={<InterestedBuyersPage user={MOCK_USER} />} />
+      <Route path="/buyer" element={<BuyerDashboard user={MOCK_USER} />} />
+      <Route path="/buyer/home" element={<LandingPage isLoggedInBuyer={true} user={MOCK_USER} />} />
+      <Route path="/map" element={<div>Map Page (to be implemented)</div>} />
+      
   )
 }
-
 export default App

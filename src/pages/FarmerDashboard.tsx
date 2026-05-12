@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { User, Harvest } from '../types'
 import { MOCK_HARVESTS } from '../mockData'
 import HarvestCard from '../components/HarvestCard'
@@ -6,15 +5,23 @@ import HarvestForm from '../components/HarvestForm'
 import { Plus, LayoutGrid, List, Sun, Cloud, CloudRain, Sparkles, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from '../lib/utils'
+import Navbar from '../components/Navbar' 
+import { useState, useEffect } from "react";
 
 interface FarmerDashboardProps {
   user: any;
 }
 
 export default function FarmerDashboard({ user }: FarmerDashboardProps) {
-  const [harvests, setHarvests] = useState<Harvest[]>(
-    MOCK_HARVESTS.filter(h => h.province === user.region)
-  );
+  const [harvests, setHarvests] = useState<Harvest[]>(() => {
+  const saved = localStorage.getItem('harvests')
+  if (saved) return JSON.parse(saved)
+  return MOCK_HARVESTS.filter(h => h.province === user.region)
+});
+useEffect(() => {
+  localStorage.setItem('harvests', JSON.stringify(harvests))
+}, [harvests])
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingHarvest, setEditingHarvest] = useState<Harvest | null>(null);
   const [viewState, setViewState] = useState<'grid' | 'list'>('grid');
@@ -58,7 +65,9 @@ export default function FarmerDashboard({ user }: FarmerDashboardProps) {
   };
 
   return (
-    <div className="space-y-10">
+  <>
+    <Navbar user={user} />
+    <div className="space-y-10 p-6 md:p-10 max-w-7xl mx-auto">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-1">
           <p className="text-sm font-bold text-[#4D7C0F] uppercase tracking-widest">Farmer Portal</p>
@@ -153,6 +162,7 @@ export default function FarmerDashboard({ user }: FarmerDashboardProps) {
         )}
       </section>
     </div>
+    </>
   );
 }
 

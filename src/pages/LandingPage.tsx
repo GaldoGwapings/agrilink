@@ -4,7 +4,7 @@ import { Sprout, TrendingUp, ShieldCheck, MapPin, ArrowRight } from "lucide-reac
 import { cn } from "../lib/utils"
 import Navbar from '../components/Navbar' 
 
-export default function LandingPage({ user }: { user?: any }) {
+export default function LandingPage({ user, isLoggedInFarmer }: { user?: any, isLoggedInFarmer?: boolean }) {
   const features = [
     {
       title: "Smart Harvest Forecasting",
@@ -35,12 +35,12 @@ export default function LandingPage({ user }: { user?: any }) {
     { name: "Poultry & Eggs", count: "45+ Listings", icon: "🥚", color: "bg-[#ECFCCB]" },
   ];
 
-  const isFarmer = user?.role === 'farmer';
+  const isFarmer = isLoggedInFarmer || user?.role === 'farmer';
 
   return (
-      <>-
+      <>
     <Navbar user={user} />
-    <div className="space-y-24 pb-20">
+    <div className="px-6 md:px-12 lg:px-20">
       {/* Hero Section */}
       <section className="relative min-h-[80vh] flex items-center rounded-[48px] overflow-hidden my-6 border border-[#E5EAD7]">
         {/* Background Image with Overlay */}
