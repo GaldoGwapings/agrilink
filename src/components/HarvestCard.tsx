@@ -5,24 +5,32 @@ import { motion } from "framer-motion";
 
 interface HarvestCardProps {
   harvest: Harvest;
-  user: User;
+  user: User | any; 
   onDelete?: (id: string) => void;
   onEdit?: (harvest: Harvest) => void;
+  onSoldOut?: (id: string) => void;
   onViewDetails?: (harvest: Harvest) => void;
   variant?: 'grid' | 'list';  
   key?: string | number;
 }
 
-export default function HarvestCard({ harvest, user, onDelete, onEdit, onViewDetails, variant = 'grid' }: HarvestCardProps) {
-  const isFarmer = user.role === 'farmer';
-  const isBuyer = user.role === 'buyer';
+export default function HarvestCard({ harvest, user, onDelete, onEdit, onSoldOut, onViewDetails, variant = 'grid' }: HarvestCardProps) {
+  const userRole = user?.user_metadata?.role || user?.role || 'farmer';
+  const isFarmer = userRole === 'farmer';
+  const isBuyer = userRole === 'buyer';
+  
+  // If the status is sold, we hide the action buttons to treat it as History.
+  const isSold = harvest.status === 'sold';
 
   const statusColors = {
     pending: "bg-yellow-100 text-yellow-800",
     available: "bg-green-100 text-green-800",
-    sold: "bg-blue-100 text-blue-800",
+    sold: "bg-gray-100 text-gray-800",
     expired: "bg-red-100 text-red-800",
   };
+
+  const rawImage = (harvest as any).image || (harvest as any).imageUrl;
+  const displayImage = rawImage instanceof File ? URL.createObjectURL(rawImage) : rawImage;
 
   if (variant === 'list') {
     return (
@@ -32,8 +40,8 @@ export default function HarvestCard({ harvest, user, onDelete, onEdit, onViewDet
         className="bg-white rounded-3xl border border-[#E5EAD7] p-4 hover:shadow-lg transition-all flex flex-col md:flex-row items-center gap-6"
       >
         <div className="w-full md:w-24 h-24 rounded-2xl overflow-hidden bg-[#F1F4E8] shrink-0">
-          {harvest.imageUrl ? (
-            <img src={harvest.imageUrl} alt={harvest.cropType} className="w-full h-full object-cover" />
+          {displayImage ? (
+            <img src={displayImage} alt={harvest.cropType} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-[#5B6D44]">
               <Package className="w-8 h-8" />
@@ -45,7 +53,7 @@ export default function HarvestCard({ harvest, user, onDelete, onEdit, onViewDet
           <div>
             <p className="text-[10px] font-bold text-[#A16207] uppercase tracking-widest leading-none mb-1">{harvest.cropType}</p>
             <h3 className="text-lg font-black text-[#1A2E05]">{harvest.quantity} {harvest.unit}</h3>
-            <p className="text-sm font-bold text-[#4D7C0F]">₱{harvest.pricePerUnit}/{harvest.unit}</p>
+            <p className="text-sm font-bold text-[#4D7C0F]">₱{harvest.pricePerUnit || (harvest as any).price}/{harvest.unit}</p>
           </div>
 
           <div className="flex flex-col justify-center">
@@ -65,14 +73,14 @@ export default function HarvestCard({ harvest, user, onDelete, onEdit, onViewDet
           <div className="flex items-center justify-end">
             <div className={cn(
               "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest",
-              statusColors[harvest.status as keyof typeof statusColors] || "bg-gray-100"
+              statusColors[harvest.status as keyof typeof statusColors] || "bg-green-100 text-green-800"
             )}>
-              {harvest.status}
+              {harvest.status || "available"}
             </div>
           </div>
         </div>
 
-        {isFarmer && (
+        {isFarmer && !isSold && (
           <div className="flex gap-2 w-full md:w-auto shrink-0">
             <button 
               onClick={(e) => { e.stopPropagation(); onEdit?.(harvest); }}
@@ -81,10 +89,10 @@ export default function HarvestCard({ harvest, user, onDelete, onEdit, onViewDet
               Edit
             </button>
             <button 
-              onClick={(e) => { e.stopPropagation(); onDelete?.(harvest.id); }}
+              onClick={(e) => { e.stopPropagation(); onSoldOut?.(harvest.id); }}
               className="px-4 py-2 bg-[#EF4444] text-white text-xs font-bold rounded-xl hover:bg-[#DC2626] transition-all"
             >
-              Sold
+              Sold Out
             </button>
           </div>
         )}
@@ -101,21 +109,31 @@ export default function HarvestCard({ harvest, user, onDelete, onEdit, onViewDet
       onClick={() => isBuyer && onViewDetails?.(harvest)}
       className={cn(
         "group bg-white rounded-[32px] border border-[#E5EAD7] p-6 hover:shadow-xl transition-all relative overflow-hidden flex flex-col h-full",
-        isBuyer && "cursor-pointer"
+        isBuyer && "cursor-pointer",
+        isSold && "opacity-80 hover:opacity-100" // visually dim historical items slightly
       )}
     >
-      {/* Top Header with Status and Category */}
       <div className="flex items-center justify-between mb-4">
         <div className={cn(
           "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest",
-          statusColors[harvest.status as keyof typeof statusColors] || "bg-gray-100"
+          statusColors[harvest.status as keyof typeof statusColors] || "bg-green-100 text-green-800"
         )}>
-          {harvest.status}
+          {harvest.status || "available"}
         </div>
         {harvest.category && (
           <span className="text-[10px] font-black text-[#4D7C0F] uppercase tracking-widest bg-[#ECFCCB] px-3 py-1 rounded-full">
             {harvest.category}
           </span>
+        )}
+      </div>
+
+      <div className="w-full h-44 bg-[#F1F4E8] rounded-2xl mb-6 relative overflow-hidden shrink-0 border border-[#E5EAD7]">
+        {displayImage ? (
+          <img src={displayImage} alt={harvest.cropType} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-[#5B6D44]">
+            <Package className="w-12 h-12" />
+          </div>
         )}
       </div>
 
@@ -129,7 +147,7 @@ export default function HarvestCard({ harvest, user, onDelete, onEdit, onViewDet
               <h3 className="text-2xl font-black text-[#1A2E05]">
                 {harvest.quantity} {harvest.unit}
               </h3>
-              <p className="text-xl font-black text-[#4D7C0F]">₱{harvest.pricePerUnit}</p>
+              <p className="text-xl font-black text-[#4D7C0F]">₱{harvest.pricePerUnit || (harvest as any).price}</p>
             </div>
           </div>
 
@@ -151,12 +169,12 @@ export default function HarvestCard({ harvest, user, onDelete, onEdit, onViewDet
           </div>
         </div>
 
-        {isFarmer && (
+        {isFarmer && !isSold && (
           <div className="space-y-4 pt-4 border-t border-[#F1F4E8]">
             <div className="p-4 bg-[#F1F4E8] rounded-2xl border border-[#E5EAD7] space-y-2">
               <p className="text-xs font-bold text-[#4D7C0F] uppercase tracking-wider">Crop Information</p>
               <p className="text-sm text-[#5B6D44] leading-relaxed line-clamp-2">
-                Freshly harvested {harvest.cropType} from {harvest.province}. High quality ensured.
+                {harvest.description || `Freshly harvested ${harvest.cropType} from ${harvest.province}. High quality ensured.`}
               </p>
             </div>
             
@@ -173,7 +191,7 @@ export default function HarvestCard({ harvest, user, onDelete, onEdit, onViewDet
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDelete?.(harvest.id);
+                  onSoldOut?.(harvest.id); 
                 }}
                 className="flex-1 py-3 bg-[#EF4444] text-white text-sm font-bold rounded-2xl hover:bg-[#DC2626] transition-colors shadow-lg shadow-red-500/10"
               >
@@ -194,6 +212,3 @@ export default function HarvestCard({ harvest, user, onDelete, onEdit, onViewDet
     </motion.div>
   );
 }
-
-
-

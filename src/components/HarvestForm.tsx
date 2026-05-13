@@ -1,12 +1,33 @@
 import { useState, useEffect } from 'react'
 import { parseHarvestDescription } from '../lib/gemini'
-import { Sparkles, Loader2 } from 'lucide-react'
+import { Sparkles, Loader2, Image as ImageIcon } from 'lucide-react'
 
 interface HarvestFormProps {
   onSuccess: (data: any) => void
   initialData?: any
   isEdit?: boolean
 }
+
+const MINDANAO_PROVINCES = [
+  "Agusan del Norte", "Agusan del Sur", "Basilan", "Bukidnon", "Camiguin",
+  "Cotabato", "Davao de Oro", "Davao del Norte", "Davao del Sur", "Davao Occidental",
+  "Davao Oriental", "Dinagat Islands", "Lanao del Norte", "Lanao del Sur",
+  "Maguindanao del Norte", "Maguindanao del Sur", "Misamis Occidental", "Misamis Oriental",
+  "Sarangani", "South Cotabato", "Sultan Kudarat", "Sulu", "Surigao del Norte",
+  "Surigao del Sur", "Tawi-Tawi", "Zamboanga del Norte", "Zamboanga del Sur", "Zamboanga Sibugay"
+].sort();
+
+const MOCK_LOCATION_DATA: Record<string, Record<string, string[]>> = {
+  "Bukidnon": {
+    "Manolo Fortich": ["San Jose", "Tankulan", "Damilag", "Alae", "Mantibugao"],
+    "Malaybalay": ["Casisang", "Sumpong", "Kalasungay", "Aglayan", "Dalwangan"],
+    "Valencia": ["Poblacion", "Lumbo", "Batangan", "Bagontaas", "Mailag"]
+  },
+  "Misamis Oriental": {
+    "Cagayan de Oro": ["Carmen", "Lapasan", "Macasandig", "Gusa", "Cugman", "Bulua"],
+    "Opol": ["Barra", "Igpit", "Poblacion", "Luyong Bonbon", "Awang"]
+  }
+};
 
 export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestFormProps) {
   const [formData, setFormData] = useState({
@@ -16,14 +37,18 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
     unit: 'kg',
     price: '',
     province: '',
+    municipality: '',
     barangay: '',
     harvestDate: '',
-    description: ''
+    description: '',
+    image: null as File | null
   })
 
   const [aiDescription, setAiDescription] = useState('')
   const [isAiParsing, setIsAiParsing] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [municipalities, setMunicipalities] = useState<string[]>([])
+  const [barangays, setBarangays] = useState<string[]>([])
 
   useEffect(() => {
     if (initialData) {
@@ -34,12 +59,54 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
         unit: initialData.unit || 'kg',
         price: initialData.price?.toString() || '',
         province: initialData.province || '',
+        municipality: initialData.municipality || '',
         barangay: initialData.barangay || '',
         harvestDate: initialData.harvestDate || '',
-        description: initialData.description || ''
+        description: initialData.description || '',
+        image: null
       })
     }
   }, [initialData])
+
+  useEffect(() => {
+    if (formData.province) {
+      const provData = MOCK_LOCATION_DATA[formData.province]
+      if (provData) {
+        setMunicipalities(Object.keys(provData))
+      } else {
+        setMunicipalities(["City 1", "City 2", "Municipality 1"]) 
+      }
+    } else {
+      setMunicipalities([])
+    }
+  }, [formData.province])
+
+  useEffect(() => {
+    if (formData.province && formData.municipality) {
+      const provData = MOCK_LOCATION_DATA[formData.province]
+      if (provData && provData[formData.municipality]) {
+        setBarangays(provData[formData.municipality])
+      } else {
+        setBarangays(["Barangay 1", "Barangay 2", "Barangay 3"]) 
+      }
+    } else {
+      setBarangays([])
+    }
+  }, [formData.province, formData.municipality])
+
+  const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setFormData(prev => ({ ...prev, province: e.target.value, municipality: '', barangay: '' }))
+  }
+
+  const handleMunicipalityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setFormData(prev => ({ ...prev, municipality: e.target.value, barangay: '' }))
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFormData(prev => ({ ...prev, image: e.target.files![0] }))
+    }
+  }
 
   const handleAiParse = async () => {
     if (!aiDescription.trim()) return
@@ -55,6 +122,7 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
           unit: parsed.unit,
           price: parsed.price.toString(),
           province: parsed.province,
+          municipality: parsed.municipality || '',
           barangay: parsed.barangay || '',
           harvestDate: parsed.targetDate
         }))
@@ -84,9 +152,11 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
         unit: 'kg',
         price: '',
         province: '',
+        municipality: '',
         barangay: '',
         harvestDate: '',
-        description: ''
+        description: '',
+        image: null
       })
     }
   }
@@ -124,8 +194,31 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-bold text-[#1A2E05] mb-2">Crop Type *</label>
+        {/* Image Upload Section */}
+        <div className="md:col-span-2">
+          <label className="block text-sm font-bold text-[#1A2E05] mb-2">Product Image</label>
+          <div className="w-full px-4 py-8 bg-[#FDFCF8] border-2 border-dashed border-[#E5EAD7] rounded-xl flex flex-col items-center justify-center text-[#5B6D44] hover:bg-[#F1F4E8] transition cursor-pointer">
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={handleImageChange}
+              className="hidden" 
+              id="image-upload" 
+            />
+            <label htmlFor="image-upload" className="cursor-pointer flex flex-col items-center gap-2">
+              <ImageIcon className="w-8 h-8 text-[#4D7C0F]" />
+              <span className="font-bold text-sm">
+                {formData.image ? formData.image.name : "Click to upload an image"}
+              </span>
+              <span className="text-xs">PNG, JPG up to 5MB</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="block text-sm font-bold text-[#1A2E05] mb-2">
+            Crop Type <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
             value={formData.cropType}
@@ -136,7 +229,7 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
           />
         </div>
 
-        <div>
+        <div className="md:col-span-2">
           <label className="block text-sm font-bold text-[#1A2E05] mb-2">Category</label>
           <select
             value={formData.category}
@@ -153,7 +246,9 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
         </div>
 
         <div>
-          <label className="block text-sm font-bold text-[#1A2E05] mb-2">Quantity *</label>
+          <label className="block text-sm font-bold text-[#1A2E05] mb-2">
+            Quantity <span className="text-red-500">*</span>
+          </label>
           <div className="flex gap-2">
             <input
               type="number"
@@ -172,7 +267,6 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
               <option value="sacks">sacks</option>
               <option value="cavan">cavan</option>
               <option value="pieces">pieces</option>
-              <option value="bunches">bunches</option>
             </select>
           </div>
         </div>
@@ -186,38 +280,66 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
             value={formData.price}
             onChange={(e) => setFormData({ ...formData, price: e.target.value })}
             className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
-            placeholder="Optional"
+            placeholder="0.00"
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-bold text-[#1A2E05] mb-2">Province *</label>
-          <input
-            type="text"
+        <div className="md:col-span-2">
+          <label className="block text-sm font-bold text-[#1A2E05] mb-2">
+            Province <span className="text-red-500">*</span>
+          </label>
+          <select
             value={formData.province}
-            onChange={(e) => setFormData({ ...formData, province: e.target.value })}
+            onChange={handleProvinceChange}
             className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
-            placeholder="e.g., Bukidnon, Nueva Ecija"
             required
-          />
+          >
+            <option value="" disabled>Select Province</option>
+            {MINDANAO_PROVINCES.map(province => (
+              <option key={province} value={province}>{province}</option>
+            ))}
+          </select>
         </div>
 
         <div>
           <label className="block text-sm font-bold text-[#1A2E05] mb-2">
-            Barangay/Municipality
+            Municipality/City <span className="text-red-500">*</span>
           </label>
-          <input
-            type="text"
+          <select
+            value={formData.municipality}
+            onChange={handleMunicipalityChange}
+            disabled={!formData.province}
+            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none disabled:opacity-60"
+            required
+          >
+            <option value="" disabled>Select Municipality/City</option>
+            {municipalities.map(muni => (
+              <option key={muni} value={muni}>{muni}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-[#1A2E05] mb-2">
+            Barangay <span className="text-red-500">*</span>
+          </label>
+          <select
             value={formData.barangay}
             onChange={(e) => setFormData({ ...formData, barangay: e.target.value })}
-            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
-            placeholder="e.g., Manolo Fortich, Brgy. San Jose"
-          />
+            disabled={!formData.municipality}
+            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none disabled:opacity-60"
+            required
+          >
+            <option value="" disabled>Select Barangay</option>
+            {barangays.map(brgy => (
+              <option key={brgy} value={brgy}>{brgy}</option>
+            ))}
+          </select>
         </div>
 
         <div>
           <label className="block text-sm font-bold text-[#1A2E05] mb-2">
-            Expected Harvest Date *
+            Expected Harvest Date <span className="text-red-500">*</span>
           </label>
           <input
             type="date"
@@ -240,11 +362,11 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
         </div>
       </div>
 
-      <div className="flex gap-4 pt-4">
+      <div className="pt-4">
         <button
           type="submit"
           disabled={loading}
-          className="flex-1 py-4 bg-[#4D7C0F] text-white rounded-xl font-bold hover:bg-[#3F6212] transition disabled:opacity-50"
+          className="w-full py-4 bg-[#4D7C0F] text-white rounded-xl font-bold hover:bg-[#3F6212] transition disabled:opacity-50"
         >
           {loading ? 'Saving...' : (isEdit ? 'Update Harvest' : 'Register Harvest')}
         </button>
