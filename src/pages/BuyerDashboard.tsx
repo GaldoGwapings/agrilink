@@ -186,24 +186,6 @@ export default function BuyerDashboard() {
     )
   }
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-green-50 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-8 bg-white rounded-2xl shadow-lg">
-          <ShoppingBag className="w-16 h-16 text-green-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Please Sign In</h2>
-          <p className="text-gray-600 mb-6">You need to be logged in to access your dashboard.</p>
-          <button
-            onClick={() => (window.location.href = '/login')}
-            className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors"
-          >
-            Go to Login
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-[#F7F9F2]">
       <Navbar user={user} />
