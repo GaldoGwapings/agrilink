@@ -1,21 +1,38 @@
-import { useEffect, useState } from 'react'
-import { supabase } from './lib/supabase'
-import Auth from './pages/Auth'
-import Dashboard from './pages/Dashboard.tsx'
+import { Routes, Route } from 'react-router-dom'
+import LandingPage from './pages/LandingPage'
+import LoginPage from './pages/LoginPage'
+import FarmerDashboard from './pages/FarmerDashboard'
+import BuyerDashboard from './pages/BuyerDashboard'
+import InterestedBuyersPage from './pages/InterestedBuyersPage'
+
+const MOCK_FARMER = {
+  id: 'u-1',
+  name: 'Juan Dela Cruz',
+  region: 'Bukidnon',
+  role: 'farmer' as const,
+}
+
+const MOCK_BUYER = {
+  id: 'u-2',
+  name: 'Juan Dela Cruz',
+  region: 'Bukidnon',
+  role: 'buyer' as const,
+}
 
 function App() {
-  const [session, setSession] = useState<any>(null)
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-    })
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
-  }, [])
-
-  return session ? <Dashboard session={session} /> : <Auth />
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/farmer" element={<FarmerDashboard user={MOCK_FARMER} />} />
+      <Route path="/farmer/home" element={<LandingPage isLoggedInFarmer={true} user={MOCK_FARMER} />} />
+      <Route path="/farmer/interested-buyers" element={<InterestedBuyersPage user={MOCK_FARMER} />} />
+      <Route path="/buyer" element={<BuyerDashboard user={MOCK_BUYER} />} />
+      <Route path="/buyer/home" element={<LandingPage isLoggedInFarmer={false} user={MOCK_BUYER} />} />
+      <Route path="/map" element={<div>Map Page (to be implemented)</div>} />
+      <Route path="/buyer/home" element={<LandingPage isLoggedInFarmer={false} user={MOCK_BUYER} />} />
+    </Routes>
+  )
 }
 
 export default App
