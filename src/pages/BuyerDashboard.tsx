@@ -346,7 +346,7 @@ export default function BuyerDashboard() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4 mr-14">
+          <div className="flex items-center gap-4 mr-13">
             {/* Profile Button Only (Notifications Removed) */}
             <button
               onClick={() => setActiveView('account')}
@@ -370,14 +370,14 @@ export default function BuyerDashboard() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsSidebarOpen(false)}
-              className="fixed inset-0 bg-black/40 z-50 backdrop-blur-sm"
+              className="fixed inset-0 bg-black/40 z-[100] backdrop-blur-sm"
             />
             <motion.div
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 left-0 h-full w-72 bg-white shadow-2xl z-50 flex flex-col"
+              className="fixed top-0 left-0 h-full w-72 bg-white shadow-2xl z-[100] flex flex-col"
             >
               <div className="p-6 flex items-center justify-between border-b border-[#E5EAD7]">
                 <div className="flex items-center gap-2">
@@ -457,8 +457,8 @@ export default function BuyerDashboard() {
               </div>
               
               <div className="flex flex-col sm:flex-row gap-4">
-                {/* Custom Categories Dropdown */}
-                <div className="relative custom-dropdown z-[60]">
+                {/* Custom Categories Dropdown - z-index lowered to 30 */}
+                <div className="relative custom-dropdown z-30">
                   <button 
                     onClick={() => setOpenDropdown(openDropdown === 'category' ? null : 'category')}
                     className="w-full sm:w-auto px-6 py-3.5 bg-white border border-[#E5EAD7] rounded-2xl font-bold text-[#1A2E05] shadow-sm hover:bg-gray-50 flex items-center justify-between gap-3 transition-colors"
@@ -492,8 +492,8 @@ export default function BuyerDashboard() {
                   </AnimatePresence>
                 </div>
 
-                {/* Custom Regions Dropdown */}
-                <div className="relative custom-dropdown z-[50]">
+                {/* Custom Regions Dropdown - z-index lowered to 20 */}
+                <div className="relative custom-dropdown z-20">
                   <button 
                     onClick={() => setOpenDropdown(openDropdown === 'region' ? null : 'region')}
                     className="w-full sm:w-auto px-6 py-3.5 bg-white border border-[#E5EAD7] rounded-2xl font-bold text-[#1A2E05] shadow-sm hover:bg-gray-50 flex items-center justify-between gap-3 transition-colors"
@@ -639,8 +639,8 @@ export default function BuyerDashboard() {
                 <p className="text-[#5B6D44]">Find available products in Mindanao</p>
               </div>
 
-              {/* Custom Map Filter Dropdown */}
-              <div className="relative custom-dropdown w-full md:w-56 z-[1000]">
+              {/* Custom Map Filter Dropdown - z-index lowered to 30 */}
+              <div className="relative custom-dropdown w-full md:w-56 z-30">
                 <button 
                   onClick={() => setOpenDropdown(openDropdown === 'mapFilter' ? null : 'mapFilter')}
                   className="w-full pl-10 pr-4 py-3 bg-[#F1F4E8] border border-[#E5EAD7] rounded-xl font-bold text-[#1A2E05] text-sm flex items-center justify-between hover:bg-[#E5EAD7]/50 transition-colors"
@@ -680,7 +680,7 @@ export default function BuyerDashboard() {
               <MapContainer 
                 center={[7.8, 124.3]} 
                 zoom={7} 
-                minZoom={7} // STRICT MIN ZOOM applied here to prevent zooming out of Mindanao
+                minZoom={7} 
                 maxBounds={MINDANAO_BOUNDS}
                 maxBoundsViscosity={1.0}
                 scrollWheelZoom={true}
@@ -721,7 +721,8 @@ export default function BuyerDashboard() {
                 ))}
               </MapContainer>
 
-              <div className="absolute bottom-6 left-6 z-[1000] bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-[#E5EAD7] shadow-lg space-y-3 hidden md:block">
+              {/* Map Legend - z-index lowered to 30 */}
+              <div className="absolute bottom-6 left-6 z-30 bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-[#E5EAD7] shadow-lg space-y-3 hidden md:block">
                 <p className="text-xs font-bold text-[#1A2E05] uppercase tracking-wider">Map Legend</p>
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
