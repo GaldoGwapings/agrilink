@@ -1,8 +1,7 @@
-import { Calendar, MapPin, Package, Clock, ArrowUpRight, Phone, MessageSquare, User as UserIcon, ChevronDown, ChevronUp } from "lucide-react";
-import type { Harvest, User } from "../types" 
-import { cn } from "../lib/utils" 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Calendar, MapPin, Package, ChevronDown } from "lucide-react";
+import type { Harvest, User } from "../types"
+import { cn } from "../lib/utils"
+import { motion } from "framer-motion";
 
 interface HarvestCardProps {
   harvest: Harvest;

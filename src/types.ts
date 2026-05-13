@@ -19,8 +19,7 @@ export interface Harvest {
   pricePerUnit?: number
   province: string
   barangay?: string
-  targetDate: string
-  harvestDate?: string
+  harvestDate: string
   description?: string
   status: 'available' | 'pending' | 'sold'
   images?: string[]
