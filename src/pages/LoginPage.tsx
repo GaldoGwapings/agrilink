@@ -47,7 +47,6 @@ export default function LoginPage() {
   const handleSubmit = async () => {
     setMessage('');
 
-    // ── SIGN IN ──
     if (isLogin) {
       if (!email.trim() || !password.trim()) {
         showMessage('Please enter your email and password.', 'error');
@@ -58,21 +57,20 @@ export default function LoginPage() {
       if (error) {
         showMessage(error.message, 'error');
       } else if (data.user && !data.user.email_confirmed_at) {
-  showMessage('Please verify your email before logging in. Check your inbox.', 'error');
-  await supabase.auth.signOut();
-} else if (data.session) {
-  showMessage('Login successful! Redirecting...', 'success');
-  setRedirecting(true);
-  setTimeout(() => {
-    const userRole = data.session?.user?.user_metadata?.role || role;
-    navigate(userRole === 'buyer' ? '/buyer' : '/farmer');
-  }, 1500);
-}
+        showMessage('Please verify your email before logging in. Check your inbox.', 'error');
+        await supabase.auth.signOut();
+      } else if (data.session) {
+        showMessage('Login successful! Redirecting...', 'success');
+        setRedirecting(true);
+        setTimeout(() => {
+          const userRole = data.session?.user?.user_metadata?.role || role;
+          navigate(userRole === 'buyer' ? '/buyer' : '/farmer');
+        }, 1500);
+      }
       setLoading(false);
       return;
     }
 
-    // ── SIGN UP ──
     if (!fullName.trim() || !location.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
       showMessage('Please fill in all required fields.', 'error');
       return;
@@ -151,24 +149,19 @@ export default function LoginPage() {
                 <ChevronLeft className="w-4 h-4" /> Back to Home
               </button>
             </div>
-
             <div className="flex items-center gap-2">
               <div className="bg-white p-2 rounded-xl">
                 <Sprout className={cn("w-6 h-6 transition-colors duration-500", isLogin ? "text-[#4D7C0F]" : "text-[#3F6212]")} />
               </div>
               <span className="text-2xl font-bold tracking-tight">AgriLink</span>
             </div>
-
             <div>
-              <h2 className="text-4xl font-black leading-tight">
-                Bridge the Gap <br /> Field to Market.
-              </h2>
+              <h2 className="text-4xl font-black leading-tight">Bridge the Gap <br /> Field to Market.</h2>
               <p className="text-white/80 text-lg mt-4 leading-relaxed">
                 Join thousands of Filipino farmers and buyers reducing waste and building a sustainable supply chain.
               </p>
             </div>
           </div>
-
           <div className="relative z-10 flex justify-end mt-8">
             <Sprout className="w-28 h-28 text-white/20" />
           </div>
@@ -183,7 +176,6 @@ export default function LoginPage() {
           )}
         >
           <div className="w-full max-w-[400px] flex flex-col">
-
             <div className="text-left mb-3">
               <h1 className="text-3xl font-black text-[#1A2E05]">
                 {isLogin ? 'Welcome Back!' : 'Create Account'}
@@ -205,8 +197,7 @@ export default function LoginPage() {
                   role === 'farmer' ? "text-white" : "text-[#5B6D44] hover:text-[#1A2E05]"
                 )}
               >
-                <Sprout className="w-4 h-4" />
-                Farmer
+                <Sprout className="w-4 h-4" /> Farmer
               </button>
               <button
                 type="button"
@@ -216,63 +207,34 @@ export default function LoginPage() {
                   role === 'buyer' ? "text-white" : "text-[#5B6D44] hover:text-[#1A2E05]"
                 )}
               >
-                <ShoppingBag className="w-4 h-4" />
-                Buyer
+                <ShoppingBag className="w-4 h-4" /> Buyer
               </button>
             </div>
 
-            {/* Fields */}
             <div className="space-y-4 w-full mb-6">
-
               <AnimatePresence>
                 {!isLogin && (
-                  <motion.div
-                    className="space-y-2 text-left"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                  >
-                    <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">
-                      Full Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Juan Dela Cruz"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 px-4 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all"
-                    />
+                  <motion.div className="space-y-2 text-left" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                    <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">Full Name <span className="text-red-500">*</span></label>
+                    <input type="text" placeholder="Juan Dela Cruz" value={fullName} onChange={(e) => setFullName(e.target.value)}
+                      className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 px-4 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all" />
                   </motion.div>
                 )}
               </AnimatePresence>
 
               <AnimatePresence>
                 {!isLogin && (
-                  <motion.div
-                    className="space-y-2 text-left"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                  >
-                    <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">
-                      Location <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Bukidnon, Nueva Ecija"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 px-4 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all"
-                    />
+                  <motion.div className="space-y-2 text-left" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                    <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">Location <span className="text-red-500">*</span></label>
+                    <input type="text" placeholder="e.g. Bukidnon, Nueva Ecija" value={location} onChange={(e) => setLocation(e.target.value)}
+                      className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 px-4 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all" />
                   </motion.div>
                 )}
               </AnimatePresence>
 
               {/* Email */}
               <div className="space-y-2 text-left">
-                <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">
-                  Email <span className="text-red-500">*</span>
-                </label>
+                <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">Email <span className="text-red-500">*</span></label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5B6D44] w-5 h-5" />
                   <input
@@ -280,6 +242,7 @@ export default function LoginPage() {
                     placeholder="juan@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
                     className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all"
                   />
                 </div>
@@ -287,9 +250,7 @@ export default function LoginPage() {
 
               {/* Password */}
               <div className="space-y-2 text-left">
-                <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">
-                  Password <span className="text-red-500">*</span>
-                </label>
+                <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">Password <span className="text-red-500">*</span></label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5B6D44] w-5 h-5" />
                   <input
@@ -297,8 +258,10 @@ export default function LoginPage() {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 pl-12 pr-12 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all"
+                    autoComplete={isLogin ? "current-password" : "new-password"}
+                    className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 pl-12 pr-12 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all [&::-ms-reveal]:hidden"
                   />
+                  {/* Custom Eye Toggle */}
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
@@ -309,18 +272,11 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Confirm Password — sign up only */}
+              {/* Confirm Password */}
               <AnimatePresence>
                 {!isLogin && (
-                  <motion.div
-                    className="space-y-2 text-left"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                  >
-                    <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">
-                      Confirm Password <span className="text-red-500">*</span>
-                    </label>
+                  <motion.div className="space-y-2 text-left" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                    <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">Confirm Password <span className="text-red-500">*</span></label>
                     <div className="relative">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5B6D44] w-5 h-5" />
                       <input
@@ -328,7 +284,8 @@ export default function LoginPage() {
                         placeholder="••••••••"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 pl-12 pr-12 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all"
+                        autoComplete="new-password"
+                        className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 pl-12 pr-12 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all [&::-ms-reveal]:hidden"
                       />
                       <button
                         type="button"
@@ -343,28 +300,18 @@ export default function LoginPage() {
               </AnimatePresence>
 
               {message && (
-                <p className={cn(
-                  "text-sm text-center font-medium",
-                  messageType === 'success' ? 'text-green-600' : 'text-red-500'
-                )}>
+                <p className={cn("text-sm text-center font-medium", messageType === 'success' ? 'text-green-600' : 'text-red-500')}>
                   {message}
                 </p>
               )}
 
               {!isLogin && (
                 <div className="flex items-start gap-2 text-left w-full px-1">
-                  <input
-                    type="checkbox"
-                    id="terms"
-                    checked={agreeTerms}
-                    onChange={(e) => setAgreeTerms(e.target.checked)}
-                    className={cn("mt-0.5 w-4 h-4 cursor-pointer rounded transition-colors", isLogin ? "accent-[#4D7C0F]" : "accent-[#3F6212]")}
-                  />
+                  <input type="checkbox" id="terms" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)}
+                    className={cn("mt-0.5 w-4 h-4 cursor-pointer rounded transition-colors", isLogin ? "accent-[#4D7C0F]" : "accent-[#3F6212]")} />
                   <label htmlFor="terms" className="text-xs text-[#5B6D44] cursor-pointer select-none leading-tight">
                     By creating an account, I agree to the{' '}
-                    <span className={cn("font-bold hover:underline transition-colors", isLogin ? "text-[#4D7C0F]" : "text-[#3F6212]")}>
-                      Terms & Conditions
-                    </span>.
+                    <span className={cn("font-bold hover:underline transition-colors", isLogin ? "text-[#4D7C0F]" : "text-[#3F6212]")}>Terms & Conditions</span>.
                   </label>
                 </div>
               )}
@@ -378,35 +325,19 @@ export default function LoginPage() {
                   isLogin ? "bg-[#4D7C0F] hover:bg-[#3F6212] shadow-[#4D7C0F]/20" : "bg-[#3F6212] hover:bg-[#2C460D] shadow-[#3F6212]/20"
                 )}
               >
-                {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    {isLogin ? 'Sign In' : 'Create Account'}
-                    <ArrowRight className="w-5 h-5" />
-                  </>
-                )}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>{isLogin ? 'Sign In' : 'Create Account'}<ArrowRight className="w-5 h-5" /></>}
               </button>
             </div>
 
             <div className="w-full text-center">
               <button
                 type="button"
-                onClick={() => {
-                  setIsLogin(!isLogin);
-                  setMessage('');
-                  setPassword('');
-                  setConfirmPassword('');
-                  setAgreeTerms(false);
-                  setShowPassword(false);
-                  setShowConfirmPassword(false);
-                }}
+                onClick={() => { setIsLogin(!isLogin); setMessage(''); setPassword(''); setConfirmPassword(''); setAgreeTerms(false); setShowPassword(false); setShowConfirmPassword(false); }}
                 className={cn("text-sm font-bold hover:underline transition-colors duration-500", isLogin ? "text-[#4D7C0F]" : "text-[#3F6212]")}
               >
                 {isLogin ? "No account? Register" : "Already have an account? Login"}
               </button>
             </div>
-
           </div>
         </motion.div>
       </motion.div>

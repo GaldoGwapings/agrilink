@@ -1,5 +1,5 @@
 // src/types/index.ts
-
+export * from '../types'
 export interface Harvest {
   id: string
   farmerId: string
@@ -11,6 +11,7 @@ export interface Harvest {
   province?: string
   barangay?: string
   harvestDate: string
+  municipality?: string 
   description?: string
   lat: number
   lng: number
