@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react'
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import FarmerDashboard from './pages/FarmerDashboard'
 import BuyerDashboard from './pages/BuyerDashboard'
-import InterestedBuyersPage from './pages/InterestedBuyersPage'
 import AuthCallback from './pages/AuthCallback'
 
 const MOCK_FARMER = {
@@ -28,7 +27,6 @@ function ProtectedRoute({ children, allowedRole }: { children: React.ReactElemen
   const [checking, setChecking] = useState(true)
   const [authorized, setAuthorized] = useState(false)
   const [redirectTo, setRedirectTo] = useState<string | null>(null)
-  const navigate = useNavigate()
 
   useEffect(() => {
     const check = async () => {
@@ -102,14 +100,6 @@ function App() {
         element={
           <ProtectedRoute allowedRole="farmer">
             <LandingPage isLoggedInFarmer={true} user={MOCK_FARMER} />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/farmer/interested-buyers"
-        element={
-          <ProtectedRoute allowedRole="farmer">
-            <InterestedBuyersPage user={MOCK_FARMER} />
           </ProtectedRoute>
         }
       />
