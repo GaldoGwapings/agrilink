@@ -19,7 +19,7 @@ interface InterestedBuyersPageProps {
 
 export default function InterestedBuyersPage({ user }: InterestedBuyersPageProps) {
   const [buyers, setBuyers] = useState(() =>
-    MOCK_BUYER_LEADS.filter((b) => b.farmerId === user.id)
+    MOCK_BUYER_LEADS.filter((b) => (b as any).farmerId === user.id)
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("pending");
@@ -27,15 +27,15 @@ export default function InterestedBuyersPage({ user }: InterestedBuyersPageProps
   const filteredBuyers = useMemo(() => {
     return buyers.filter((b) => {
       const matchesSearch =
-        b.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        b.crop.toLowerCase().includes(searchTerm.toLowerCase());
+        (b as any).name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (b as any).crop.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus =
         statusFilter === "all" || b.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
   }, [buyers, searchTerm, statusFilter]);
 
-  const handleDoneOnWay = (id: number) => {
+  const handleDoneOnWay = (id: string) => {
     setBuyers((prev) => prev.filter((b) => b.id !== id));
   };
 
@@ -139,10 +139,10 @@ export default function InterestedBuyersPage({ user }: InterestedBuyersPageProps
                   <div className="space-y-4">
                     <div>
                       <p className="text-xs font-bold text-[#5B6D44] uppercase tracking-wider">
-                        {buyer.date}
+                        {(buyer as any).date}
                       </p>
                       <h3 className="text-2xl font-black text-[#1A2E05] leading-tight">
-                        {buyer.name}
+                        {(buyer as any).name}
                       </h3>
                     </div>
 
@@ -151,24 +151,24 @@ export default function InterestedBuyersPage({ user }: InterestedBuyersPageProps
                         <p className="text-[10px] font-black text-[#5B6D44] uppercase">
                           Requested Crop
                         </p>
-                        <p className="font-bold text-[#4D7C0F]">{buyer.crop}</p>
+                        <p className="font-bold text-[#4D7C0F]">{(buyer as any).crop}</p>
                       </div>
                       <div className="space-y-1">
                         <p className="text-[10px] font-black text-[#5B6D44] uppercase">
                           Quantity
                         </p>
-                        <p className="font-bold text-[#1A2E05]">{buyer.quantity}</p>
+                        <p className="font-bold text-[#1A2E05]">{(buyer as any).quantity}</p>
                       </div>
                     </div>
 
                     <div className="space-y-3 pt-4 border-t border-[#F1F4E8]">
                       <div className="flex items-center gap-3 text-sm text-[#5B6D44]">
                         <MapPin className="w-4 h-4 text-[#4D7C0F]" />
-                        <span className="font-medium">{buyer.location}</span>
+                        <span className="font-medium">{(buyer as any).location}</span>
                       </div>
                       <div className="flex items-center gap-3 text-sm text-[#5B6D44]">
                         <Phone className="w-4 h-4 text-[#4D7C0F]" />
-                        <span className="font-black text-[#1A2E05]">{buyer.phone}</span>
+                        <span className="font-black text-[#1A2E05]">{(buyer as any).phone}</span>
                       </div>
                     </div>
                   </div>

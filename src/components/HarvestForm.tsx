@@ -1,291 +1,422 @@
-import { useState, FormEvent, useRef, ChangeEvent } from "react";
-import { Sparkles, Loader2, Plus, Info, Upload, Image as ImageIcon, X } from "lucide-react";
-import { parseHarvestDescription } from "@/services/gemini";
-import type { Harvest } from "../types"
-import { cn } from "@/lib/utils";
+import { useState, useEffect } from 'react'
+import { parseHarvestDescription } from '../lib/gemini'
+import { Sparkles, Loader2, Image as ImageIcon } from 'lucide-react'
 
 interface HarvestFormProps {
-  onSuccess: (harvest: Partial<Harvest>) => void;
-  initialData?: Harvest;
-  isEdit?: boolean;
+  onSuccess: (data: any) => void
+  initialData?: any
+  isEdit?: boolean
 }
+
+const MINDANAO_PROVINCES = [
+  "Agusan del Norte", "Agusan del Sur", "Basilan", "Bukidnon", "Camiguin",
+  "Cotabato", "Davao de Oro", "Davao del Norte", "Davao del Sur", "Davao Occidental",
+  "Davao Oriental", "Dinagat Islands", "Lanao del Norte", "Lanao del Sur",
+  "Maguindanao del Norte", "Maguindanao del Sur", "Misamis Occidental", "Misamis Oriental",
+  "Sarangani", "South Cotabato", "Sultan Kudarat", "Sulu", "Surigao del Norte",
+  "Surigao del Sur", "Tawi-Tawi", "Zamboanga del Norte", "Zamboanga del Sur", "Zamboanga Sibugay"
+].sort();
+
+const MOCK_LOCATION_DATA: Record<string, Record<string, string[]>> = {
+  "Bukidnon": {
+    "Manolo Fortich": ["San Jose", "Tankulan", "Damilag", "Alae", "Mantibugao"],
+    "Malaybalay": ["Casisang", "Sumpong", "Kalasungay", "Aglayan", "Dalwangan"],
+    "Valencia": ["Poblacion", "Lumbo", "Batangan", "Bagontaas", "Mailag"]
+  },
+  "Misamis Oriental": {
+    "Cagayan de Oro": ["Carmen", "Lapasan", "Macasandig", "Gusa", "Cugman", "Bulua"],
+    "Opol": ["Barra", "Igpit", "Poblacion", "Luyong Bonbon", "Awang"]
+  }
+};
 
 export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestFormProps) {
-  const [description, setDescription] = useState("");
-  const [isParsing, setIsParsing] = useState(false);
-  const [showManual, setShowManual] = useState(isEdit || false);
-  const [imagePreview, setImagePreview] = useState<string | null>(initialData?.imageUrl || null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-    const [formData, setFormData] = useState({
-    cropType: initialData?.cropType || "",
-    category: initialData?.category || "Vegetables",
-    quantity: initialData?.quantity?.toString() || "",
-    unit: initialData?.unit || "kg",
-    pricePerUnit: initialData?.pricePerUnit?.toString() || "",
-    harvestDate: initialData?.harvestDate || "",
-    barangay: initialData?.barangay || "",
-    province: initialData?.province || "Bukidnon",
-  });
+  const [formData, setFormData] = useState({
+    cropType: '',
+    category: 'Vegetables',
+    quantity: '',
+    unit: 'kg',
+    price: '',
+    province: '',
+    municipality: '',
+    barangay: '',
+    harvestDate: '',
+    description: '',
+    image: null as File | null
+  })
 
-  const handleAIParse = async () => {
-    if (!description.trim()) return;
-    setIsParsing(true);
-    const result = await parseHarvestDescription(description);
-    setIsParsing(false);
-    
-    if (result) {
-      setFormData({
-        ...formData,
-        cropType: result.cropType,
-        quantity: result.quantity.toString(),
-        unit: result.unit,
-        category: result.category || "Vegetables",
-        pricePerUnit: result.pricePerUnit?.toString() || "",
-        harvestDate: result.harvestDate,
-        barangay: result.location,
-      });
-      setShowManual(true);
-    }
-  };
+  const [aiDescription, setAiDescription] = useState('')
+  const [isAiParsing, setIsAiParsing] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [municipalities, setMunicipalities] = useState<string[]>([])
+  const [barangays, setBarangays] = useState<string[]>([])
 
-  const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert("File size should be less than 5MB");
-        return;
+  useEffect(() => {
+    if (initialData) {
+      // Format the date for the input field (YYYY-MM-DD)
+      let formattedDate = initialData.harvestDate || ''
+      if (formattedDate && formattedDate.includes('/')) {
+        const parts = formattedDate.split('/')
+        if (parts.length === 3) {
+          formattedDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`
+        }
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      
+      setFormData({
+        cropType: initialData.cropType || initialData.crop_type || '',
+        category: initialData.category || 'Vegetables',
+        quantity: initialData.quantity?.toString() || '',
+        unit: initialData.unit || 'kg',
+        price: (initialData.price_per_unit || initialData.price || '').toString(),
+        province: initialData.province || '',
+        municipality: initialData.municipality || '',
+        barangay: initialData.barangay || '',
+        harvestDate: formattedDate,
+        description: initialData.description || '',
+        image: null
+      })
     }
-  };
+  }, [initialData])
 
-  const removeImage = () => {
-    setImagePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+  useEffect(() => {
+    if (formData.province) {
+      const provData = MOCK_LOCATION_DATA[formData.province]
+      if (provData) {
+        setMunicipalities(Object.keys(provData))
+      } else {
+        setMunicipalities(["City 1", "City 2", "Municipality 1"]) 
+      }
+    } else {
+      setMunicipalities([])
     }
-  };
+  }, [formData.province])
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    if (formData.province && formData.municipality) {
+      const provData = MOCK_LOCATION_DATA[formData.province]
+      if (provData && provData[formData.municipality]) {
+        setBarangays(provData[formData.municipality])
+      } else {
+        setBarangays(["Barangay 1", "Barangay 2", "Barangay 3"]) 
+      }
+    } else {
+      setBarangays([])
+    }
+  }, [formData.province, formData.municipality])
+
+  const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setFormData(prev => ({ ...prev, province: e.target.value, municipality: '', barangay: '' }))
+  }
+
+  const handleMunicipalityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setFormData(prev => ({ ...prev, municipality: e.target.value, barangay: '' }))
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFormData(prev => ({ ...prev, image: e.target.files![0] }))
+    }
+  }
+
+  const handleAiParse = async () => {
+    if (!aiDescription.trim()) return
+    setIsAiParsing(true)
+    try {
+      const parsed = await parseHarvestDescription(aiDescription)
+      if (parsed.cropName) {
+        // Format the date from AI (assuming it might come in various formats)
+        let formattedDate = parsed.targetDate || ''
+        if (formattedDate && !formattedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          // Try to parse and format the date
+          const dateObj = new Date(formattedDate)
+          if (!isNaN(dateObj.getTime())) {
+            formattedDate = dateObj.toISOString().split('T')[0]
+          }
+        }
+        
+        setFormData(prev => ({
+          ...prev,
+          cropType: parsed.cropName,
+          category: parsed.category,
+          quantity: parsed.quantity.toString(),
+          unit: parsed.unit,
+          price: parsed.price.toString(),
+          province: parsed.province,
+          municipality: parsed.municipality || '',
+          barangay: parsed.barangay || '',
+          harvestDate: formattedDate
+        }))
+        setAiDescription('')
+      }
+    } catch (error) {
+      console.error('AI parse error:', error)
+    } finally {
+      setIsAiParsing(false)
+    }
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
     
-    // Strict validation for barangay
-    if (!formData.barangay.trim()) {
-      alert("Please provide the Barangay for your harvest location.");
-      return;
+    // Format the date to YYYY-MM-DD for Supabase
+    let formattedDate = formData.harvestDate
+    if (formattedDate && !formattedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const dateObj = new Date(formattedDate)
+      if (!isNaN(dateObj.getTime())) {
+        formattedDate = dateObj.toISOString().split('T')[0]
+      }
     }
-
+    
+    // Ensure we have a valid date
+    if (!formattedDate) {
+      formattedDate = new Date().toISOString().split('T')[0]
+    }
+    
     onSuccess({
-      ...initialData,
       cropType: formData.cropType,
-      category: formData.category as any,
-      quantity: parseFloat(formData.quantity),
+      category: formData.category,
+      quantity: parseFloat(formData.quantity) || 0,
       unit: formData.unit,
-      pricePerUnit: parseFloat(formData.pricePerUnit) || 0,
-      imageUrl: imagePreview || undefined,
-      harvestDate: formData.harvestDate,
-      barangay: formData.barangay,
+      pricePerUnit: parseFloat(formData.price) || 0, // Map to pricePerUnit for database
       province: formData.province,
-      status: initialData?.status || 'pending',
-      createdAt: initialData?.createdAt || new Date().toISOString(),
-    });
-
-    // Reset form after success
-    setImagePreview(null);
-  };
+      municipality: formData.municipality,
+      barangay: formData.barangay,
+      harvestDate: formattedDate, // Send formatted date
+      description: formData.description,
+      image: formData.image,
+      status: 'active'
+    })
+    
+    setLoading(false)
+    
+    if (!isEdit) {
+      setFormData({
+        cropType: '',
+        category: 'Vegetables',
+        quantity: '',
+        unit: 'kg',
+        price: '',
+        province: '',
+        municipality: '',
+        barangay: '',
+        harvestDate: '',
+        description: '',
+        image: null
+      })
+    }
+  }
 
   return (
-    <div className={cn(
-      "bg-white rounded-[32px] border border-[#E5EAD7] p-8 space-y-8",
-      isEdit && "border-none p-0 bg-transparent shadow-none"
-    )}>
-      {!isEdit && (
-        <div className="space-y-2">
-          <h3 className="text-2xl font-bold flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-[#A16207]" />
-            Smart Listing
-          </h3>
-          <p className="text-sm text-[#5B6D44]">
-            Type naturally in Taglish or English. Our AI will extract the details for you.
-          </p>
-        </div>
-      )}
-
-      {!isEdit && (
-        <div className="space-y-4">
-          <div className="relative">
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder='e.g., "Mayroon akong 20 sako ng puting mais sa Sumilao, Bukidnon sa susunod na linggo"'
-              className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl p-4 pr-12 h-32 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all"
-            />
-            <button
-              onClick={handleAIParse}
-              disabled={isParsing || !description.trim()}
-              className="absolute bottom-4 right-4 p-3 bg-[#1A2E05] text-white rounded-xl hover:bg-[#4D7C0F] disabled:opacity-50 transition-all flex items-center gap-2 shadow-lg"
-            >
-              {isParsing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-              Parse Data
-            </button>
-          </div>
-
-          {!showManual && (
-            <button 
-              onClick={() => setShowManual(true)}
-              className="text-xs font-bold text-[#4D7C0F] hover:underline flex items-center gap-1"
-            >
-              Or fill out manually
-            </button>
-          )}
-        </div>
-      )}
-
-      {showManual && (
-        <form onSubmit={handleSubmit} className="space-y-6 pt-6 border-t border-[#F1F4E8] animate-in fade-in slide-in-from-top-4">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#5B6D44]">Upload Crop Photo</label>
-              <div 
-                onClick={() => fileInputRef.current?.click()}
-                className="relative cursor-pointer group"
-              >
-                {imagePreview ? (
-                  <div className="relative h-60 rounded-2xl overflow-hidden border-2 border-[#4D7C0F]">
-                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <p className="text-white font-bold text-sm">Change Image</p>
-                    </div>
-                    <button 
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeImage();
-                      }}
-                      className="absolute top-2 right-2 p-1 bg-white rounded-full shadow-md text-red-500 hover:scale-110 transition-transform"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="h-60 rounded-2xl border-2 border-dashed border-[#E5EAD7] bg-[#FDFCF8] flex flex-col items-center justify-center space-y-3 hover:border-[#4D7C0F] hover:bg-[#ECFCCB]/20 transition-all">
-                    <div className="w-12 h-12 bg-[#F1F4E8] rounded-full flex items-center justify-center text-[#5B6D44] group-hover:text-[#4D7C0F] transition-colors">
-                      <Upload className="w-6 h-6" />
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-bold text-[#1A2E05]">Click or drag to upload</p>
-                      <p className="text-xs text-[#5B6D44]">JPG, PNG or WEBP (Max 5MB)</p>
-                    </div>
-                  </div>
-                )}
-                <input 
-                  type="file" 
-                  ref={fileInputRef}
-                  onChange={handleImageChange}
-                  accept="image/*"
-                  className="hidden"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#5B6D44]">Category</label>
-              <select 
-                value={formData.category}
-                onChange={(e) => setFormData({...formData, category: e.target.value})}
-                className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl px-4 py-3 focus:ring-1 focus:ring-[#4D7C0F] outline-none"
-                required
-              >
-                <option value="Vegetables">Vegetables</option>
-                <option value="Fruits">Fruits</option>
-                <option value="Grains & Rice">Grains & Rice</option>
-                <option value="Root Crops">Root Crops</option>
-                <option value="Spices">Spices</option>
-                <option value="Poultry & Eggs">Poultry & Eggs</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#5B6D44]">Crop Type</label>
-              <input 
-                type="text" 
-                value={formData.cropType}
-                onChange={(e) => setFormData({...formData, cropType: e.target.value})}
-                placeholder="e.g. Yellow Corn"
-                className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl px-4 py-3 focus:ring-1 focus:ring-[#4D7C0F] outline-none"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#5B6D44]">Quantity & Unit</label>
-              <div className="flex gap-2">
-                <input 
-                  type="number" 
-                  value={formData.quantity}
-                  onChange={(e) => setFormData({...formData, quantity: e.target.value})}
-                  className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl px-4 py-3 focus:ring-1 focus:ring-[#4D7C0F] outline-none"
-                  required
-                />
-                <select 
-                  value={formData.unit}
-                  onChange={(e) => setFormData({...formData, unit: e.target.value})}
-                  className="bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl px-2 focus:ring-1 focus:ring-[#4D7C0F] outline-none"
-                >
-                  <option value="kg">kg</option>
-                  <option value="Sacks (Kaban)">Sacks</option>
-                  <option value="Metric Tons">MTons</option>
-                  <option value="Cavan">Cavan</option>
-                </select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#5B6D44]">Price Per Unit (₱)</label>
-              <input 
-                type="number" 
-                value={formData.pricePerUnit}
-                onChange={(e) => setFormData({...formData, pricePerUnit: e.target.value})}
-                placeholder="0.00"
-                className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl px-4 py-3 focus:ring-1 focus:ring-[#4D7C0F] outline-none"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#5B6D44]">Expected Date</label>
-              <input 
-                type="date" 
-                value={formData.harvestDate}
-                onChange={(e) => setFormData({...formData, harvestDate: e.target.value})}
-                className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl px-4 py-3 focus:ring-1 focus:ring-[#4D7C0F] outline-none"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#5B6D44]">Barangay</label>
-              <input 
-                type="text" 
-                value={formData.barangay}
-                onChange={(e) => setFormData({...formData, barangay: e.target.value})}
-                className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl px-4 py-3 focus:ring-1 focus:ring-[#4D7C0F] outline-none"
-                required
-              />
-            </div>
-          </div>
-
-          <button 
-            type="submit"
-            className="w-full py-4 bg-[#4D7C0F] text-white rounded-2xl font-bold hover:bg-[#3F6212] transition-colors flex items-center justify-center gap-2"
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* AI Quick Entry */}
+      <div className="mb-6 p-4 bg-[#ECFCCB] rounded-2xl">
+        <label className="text-xs font-bold uppercase tracking-widest text-[#4D7C0F] flex items-center gap-2 mb-2">
+          <Sparkles className="w-4 h-4" />
+          AI Quick Entry (Magkwento lang)
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder='Hal: "Mag-aani ako ng 50 kaban ng mais sa Manolo Fortich, Bukidnon sa May 20"'
+            value={aiDescription}
+            onChange={(e) => setAiDescription(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAiParse()}
+            className="flex-1 bg-white border border-[#E5EAD7] rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+          />
+          <button
+            type="button"
+            onClick={handleAiParse}
+            disabled={isAiParsing || !aiDescription.trim()}
+            className="px-4 py-2 bg-[#4D7C0F] text-white rounded-xl font-bold text-sm hover:bg-[#3F6212] transition disabled:opacity-50 flex items-center gap-2"
           >
-            {isEdit ? <Sparkles className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-            {isEdit ? 'Update Harvest Listing' : 'Publish Harvest Listing'}
+            {isAiParsing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            Auto-fill
           </button>
-        </form>
-      )}
-    </div>
-  );
+        </div>
+        <p className="text-[10px] text-[#5B6D44] mt-2">
+          Pwede Taglish, English, o Filipino. Awtomatikong kukumpletuhin ng AI ang form. Pwede ring mag-mention ng municipality at province.
+        </p>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Image Upload Section */}
+        <div className="md:col-span-2">
+          <label className="block text-sm font-bold text-[#1A2E05] mb-2">Product Image</label>
+          <div className="w-full px-4 py-8 bg-[#FDFCF8] border-2 border-dashed border-[#E5EAD7] rounded-xl flex flex-col items-center justify-center text-[#5B6D44] hover:bg-[#F1F4E8] transition cursor-pointer">
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={handleImageChange}
+              className="hidden" 
+              id="image-upload" 
+            />
+            <label htmlFor="image-upload" className="cursor-pointer flex flex-col items-center gap-2">
+              <ImageIcon className="w-8 h-8 text-[#4D7C0F]" />
+              <span className="font-bold text-sm">
+                {formData.image ? formData.image.name : "Click to upload an image"}
+              </span>
+              <span className="text-xs">PNG, JPG up to 5MB</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="block text-sm font-bold text-[#1A2E05] mb-2">
+            Crop Type <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={formData.cropType}
+            onChange={(e) => setFormData({ ...formData, cropType: e.target.value })}
+            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+            placeholder="e.g., Rice, Corn, Tomato"
+            required
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="block text-sm font-bold text-[#1A2E05] mb-2">Category</label>
+          <select
+            value={formData.category}
+            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+          >
+            <option value="Vegetables">Vegetables</option>
+            <option value="Fruits">Fruits</option>
+            <option value="Grains & Rice">Grains & Rice</option>
+            <option value="Root Crops">Root Crops</option>
+            <option value="Spices">Spices</option>
+            <option value="Poultry & Eggs">Poultry & Eggs</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-[#1A2E05] mb-2">
+            Quantity <span className="text-red-500">*</span>
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={formData.quantity}
+              onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+              className="flex-1 px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+              placeholder="Amount"
+              required
+            />
+            <select
+              value={formData.unit}
+              onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+              className="w-28 px-3 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+            >
+              <option value="kg">kg</option>
+              <option value="sacks">sacks</option>
+              <option value="cavan">cavan</option>
+              <option value="pieces">pieces</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-[#1A2E05] mb-2">
+            Price per {formData.unit} (PHP)
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            value={formData.price}
+            onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+            placeholder="0.00"
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="block text-sm font-bold text-[#1A2E05] mb-2">
+            Province <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={formData.province}
+            onChange={handleProvinceChange}
+            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+            required
+          >
+            <option value="" disabled>Select Province</option>
+            {MINDANAO_PROVINCES.map(province => (
+              <option key={province} value={province}>{province}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-[#1A2E05] mb-2">
+            Municipality/City <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={formData.municipality}
+            onChange={handleMunicipalityChange}
+            disabled={!formData.province}
+            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none disabled:opacity-60"
+            required
+          >
+            <option value="" disabled>Select Municipality/City</option>
+            {municipalities.map(muni => (
+              <option key={muni} value={muni}>{muni}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-[#1A2E05] mb-2">
+            Barangay <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={formData.barangay}
+            onChange={(e) => setFormData({ ...formData, barangay: e.target.value })}
+            disabled={!formData.municipality}
+            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none disabled:opacity-60"
+            required
+          >
+            <option value="" disabled>Select Barangay</option>
+            {barangays.map(brgy => (
+              <option key={brgy} value={brgy}>{brgy}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-[#1A2E05] mb-2">
+            Expected Harvest Date <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="date"
+            value={formData.harvestDate}
+            onChange={(e) => setFormData({ ...formData, harvestDate: e.target.value })}
+            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+            required
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="block text-sm font-bold text-[#1A2E05] mb-2">Additional Notes</label>
+          <textarea
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            rows={3}
+            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+            placeholder="Any additional information about your harvest..."
+          />
+        </div>
+      </div>
+
+      <div className="pt-4">
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full py-4 bg-[#4D7C0F] text-white rounded-xl font-bold hover:bg-[#3F6212] transition disabled:opacity-50"
+        >
+          {loading ? 'Saving...' : (isEdit ? 'Update Harvest' : 'Register Harvest')}
+        </button>
+      </div>
+    </form>
+  )
 }
-
-
-
