@@ -69,7 +69,10 @@ export default function BuyerDashboard() {
         .select('*, profiles:farmer_id(full_name)')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
-      if (!error && data) setHarvests(data)
+      if (!error && data) {
+  console.log('First harvest:', JSON.stringify(data[0], null, 2))
+  setHarvests(data)
+}
     }
     fetchHarvests()
   }, [])
@@ -589,6 +592,15 @@ export default function BuyerDashboard() {
                         <p className="text-sm text-[#5B6D44] border-t border-[#E5EAD7] pt-3">
                           Farmer: <strong className="text-[#1A2E05]">{harvest.profiles?.full_name || 'Unknown'}</strong>
                         </p>
+
+                        {harvest.description && (
+  <div className="p-3 bg-[#F1F4E8] rounded-2xl border border-[#E5EAD7]">
+    <p className="text-[10px] font-bold text-[#4D7C0F] uppercase tracking-wider mb-1">Description</p>
+    <p className="text-xs text-[#5B6D44] leading-relaxed line-clamp-3">
+      {harvest.description}
+    </p>
+  </div>
+)}
 
                         <div className="grid grid-cols-2 gap-4 pb-4">
                           <div className="flex items-start gap-2 text-[#5B6D44]">

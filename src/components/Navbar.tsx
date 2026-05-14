@@ -80,7 +80,7 @@ export default function Navbar({ user: propUser }: NavbarProps) {
 
           {/* LEFT SIDE: AgriLink Logo */}
           <Link
-            to={currentUser ? (userRole === 'farmer' ? '/farmer/home' : '/buyer/home') : '/'}
+            to={currentUser ? (userRole === 'farmer' ? '/farmer' : '/buyer') : '/'}
             className="flex items-center gap-2 group"
           >
             <div className="bg-[#4D7C0F] p-2 rounded-xl group-hover:scale-105 transition-transform">

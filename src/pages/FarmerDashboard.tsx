@@ -283,56 +283,83 @@ export default function FarmerDashboard() {
   }, [user])
 
   // ── CRUD handlers ──
-  const handleAddHarvest = async (newHarvest: any) => {
-    if (!user?.id) return
+const handleAddHarvest = async (newHarvest: any) => {
+  if (!user?.id) return
 
-    let image_url = null
-    if (newHarvest.image instanceof File) {
-      const file = newHarvest.image
-      const ext = file.name.split('.').pop()
-      const path = `harvests/${user.id}/${Date.now()}.${ext}`
-      const { error: uploadError } = await supabase.storage
+  let image_url = null
+  if (newHarvest.image instanceof File) {
+    const file = newHarvest.image
+    const ext = file.name.split('.').pop()
+    const path = `harvests/${user.id}/${Date.now()}.${ext}`
+    const { error: uploadError } = await supabase.storage
+      .from('harvest-images')
+      .upload(path, file, { upsert: true })
+    if (!uploadError) {
+      const { data: urlData } = supabase.storage
         .from('harvest-images')
-        .upload(path, file, { upsert: true })
-      console.log('Upload error:', uploadError)
-      console.log('Upload path:', path)
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage
-          .from('harvest-images')
-          .getPublicUrl(path)
-        image_url = urlData.publicUrl
-        console.log('image_url:', image_url)
-      }
-    }
-
-    if (editingHarvest) {
-      const { data, error } = await supabase
-        .from('harvests')
-        .update({
-          crop_type: newHarvest.crop_type,
-          category: newHarvest.category,
-          quantity: newHarvest.quantity,
-          unit: newHarvest.unit,
-          harvest_date: newHarvest.harvest_date,
-          province: newHarvest.province,
-          municipality: newHarvest.municipality,
-          barangay: newHarvest.barangay,
-          price_per_unit: newHarvest.price_per_unit,
-          description: newHarvest.description,
-          status: newHarvest.status,
-          lat: newHarvest.lat,
-          lng: newHarvest.lng,
-          ...(image_url && { image_url }),
-        })
-        .eq('id', editingHarvest.id)
-        .select()
-        .single()
-      if (!error && data) {
-        setHarvests(prev => [data as Harvest, ...prev])
-      }
-      setShowAddForm(false)
+        .getPublicUrl(path)
+      image_url = urlData.publicUrl
     }
   }
+
+  if (editingHarvest) {
+    const { data, error } = await supabase
+      .from('harvests')
+      .update({
+        crop_type: newHarvest.crop_type,
+        category: newHarvest.category,
+        quantity: newHarvest.quantity,
+        unit: newHarvest.unit,
+        harvest_date: newHarvest.harvest_date,
+        province: newHarvest.province,
+        municipality: newHarvest.municipality,
+        barangay: newHarvest.barangay,
+        price_per_unit: newHarvest.price_per_unit,
+        description: newHarvest.description,
+        status: newHarvest.status,
+        ...(image_url && { image_url }),
+      })
+      .eq('id', editingHarvest.id)
+      .select()
+      .single()
+    if (!error && data) {
+      setHarvests(prev => prev.map(h => h.id === editingHarvest.id ? data as Harvest : h))
+    }
+    setEditingHarvest(null)
+    setShowAddForm(false)
+
+  } else {
+    const insertData = {
+      farmer_id: user.id,
+      crop_type: newHarvest.crop_type,
+      category: newHarvest.category,
+      quantity: newHarvest.quantity,
+      unit: newHarvest.unit,
+      harvest_date: newHarvest.harvest_date,
+      province: newHarvest.province,
+      municipality: newHarvest.municipality,
+      barangay: newHarvest.barangay,
+      price_per_unit: newHarvest.price_per_unit || 0,
+      description: newHarvest.description || '',
+      status: newHarvest.status || 'active',
+      image_url: image_url,
+      lat: 8.2917,
+      lng: 124.9667,
+    }
+
+    const { error } = await supabase
+      .from('harvests')
+      .insert([insertData])
+
+    if (error) {
+      console.error('Insert failed:', error.message, error.code, error.hint)
+      alert('Failed to add harvest: ' + error.message)
+    } else {
+      await fetchHarvests(user.id)
+    }
+    setShowAddForm(false)
+  }
+}
 
   const handleDeleteHarvest = async (id: string) => {
     const { error } = await supabase

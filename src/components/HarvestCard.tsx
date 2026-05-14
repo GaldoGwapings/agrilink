@@ -26,17 +26,17 @@ export default function HarvestCard({ harvest, user, onDelete, onEdit, onSoldOut
 
   // Helper functions to handle both camelCase and snake_case property names
   const getCropType = () => {
-    return harvest.cropType || harvest.crop_type || 'Unknown Crop';
+    return harvest.crop_type || harvest.crop_type || 'Unknown Crop';
   };
 
   const getHarvestDate = () => {
-    const date = harvest.harvestDate || harvest.harvest_date;
+    const date = harvest.harvest_date || harvest.harvest_date;
     if (!date) return new Date();
     return new Date(date);
   };
 
   const getPrice = () => {
-    const price = harvest.pricePerUnit || harvest.price_per_unit || (harvest as any).price;
+    const price = harvest.price_per_unit || harvest.price_per_unit || (harvest as any).price;
     return price ? price.toLocaleString() : '0';
   };
 
@@ -229,6 +229,7 @@ export default function HarvestCard({ harvest, user, onDelete, onEdit, onSoldOut
                 Price: ₱{getPrice()} per {getUnit()}
               </p>
             )}
+            
             <p className="text-sm text-[#5B6D44] leading-relaxed line-clamp-2">
               {getDescription()}
             </p>
