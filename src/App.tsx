@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage'
 import FarmerDashboard from './pages/FarmerDashboard'
 import BuyerDashboard from './pages/BuyerDashboard'
 import InterestedBuyersPage from './pages/InterestedBuyersPage'
+import AuthCallback from './pages/AuthCallback'
 
 const MOCK_FARMER = {
   id: 'u-1',
@@ -130,6 +131,7 @@ function App() {
           </ProtectedRoute>
         }
       />
+      <Route path="/auth/callback" element={<AuthCallback />} />
 
       <Route path="/map" element={<div>Map Page (to be implemented)</div>} />
     </Routes>

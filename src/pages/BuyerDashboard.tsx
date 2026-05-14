@@ -6,7 +6,6 @@ import {
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { supabase } from '../lib/supabase'
-import { MOCK_HARVESTS } from '../mockData'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -38,58 +37,6 @@ const MINDANAO_PROVINCES = [
   "Surigao del Sur", "Tawi-Tawi", "Zamboanga del Norte", "Zamboanga del Sur", "Zamboanga Sibugay"
 ].sort();
 
-// Mock available harvests from farmers
-const AVAILABLE_HARVESTS = [
-  {
-    id: 'h-1',
-    category: 'Grains & Rice',
-    crop: 'Yellow Corn',
-    farmer: 'Juan Dela Cruz',
-    qty: '50 Sacks (Kaban)',
-    date: '5/20/2026',
-    province: 'Sumilao, Bukidnon',
-    status: 'Available',
-    price: '₱1200',
-    imageUrl: null
-  },
-  {
-    id: 'h-2',
-    category: 'Grains & Rice',
-    crop: 'Palay (Rice)',
-    farmer: 'Pedro Santos',
-    qty: '120 Sacks (Kaban)',
-    date: '5/25/2026',
-    province: 'Binalonan, Pangasinan',
-    status: 'Pending',
-    price: '₱1100',
-    imageUrl: null
-  },
-  {
-    id: 'h-3',
-    category: 'Vegetables',
-    crop: 'Red Onions',
-    farmer: 'Maria Cruz',
-    qty: '2 Metric Tons',
-    date: '5/15/2026',
-    province: 'Bongabon, Nueva Ecija',
-    status: 'Available',
-    price: '₱45000',
-    imageUrl: null
-  },
-  {
-    id: 'h-4',
-    category: 'Vegetables',
-    crop: 'Tomatoes',
-    farmer: 'Roberto Reyes',
-    qty: '800 kg',
-    date: '5/18/2026',
-    province: 'Tupi, South Cotabato',
-    status: 'Available',
-    price: '₱45',
-    imageUrl: null
-  },
-]
-
 export default function BuyerDashboard() {
   const [user, setUser] = useState<any | null>(null)
   const [profile, setProfile] = useState<any | null>(null)
@@ -112,17 +59,47 @@ export default function BuyerDashboard() {
     phone: ''
   })
 
+  // Harvests from Supabase
+  const [harvests, setHarvests] = useState<any[]>([])
+
+  useEffect(() => {
+    const fetchHarvests = async () => {
+      const { data, error } = await supabase
+        .from('harvests')
+        .select('*, profiles:farmer_id(full_name)')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+      if (!error && data) setHarvests(data)
+    }
+    fetchHarvests()
+  }, [])
+
   // Marketplace States
   const [searchQuery, setSearchQuery] = useState('')
   const [marketCategory, setMarketCategory] = useState('All Categories')
   const [marketRegion, setMarketRegion] = useState('All Regions')
   const [interestedIds, setInterestedIds] = useState<string[]>([])
 
+  // Load which harvests this buyer has already contacted
+  useEffect(() => {
+    if (!user) return
+    const fetchInterests = async () => {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('harvest_id')
+        .eq('buyer_id', user.id)
+      if (!error && data) {
+        setInterestedIds(data.map((n: any) => n.harvest_id))
+      }
+    }
+    fetchInterests()
+  }, [user])
+
   // Harvest Map Filter States
   const [mapFilter, setMapFilter] = useState('All')
   const mapCategories = ["All", "Vegetables", "Fruits", "Grains & Rice", "Root Crops", "Spices", "Poultry & Eggs"]
   
-  const filteredMapHarvests = MOCK_HARVESTS.filter(h => 
+  const filteredMapHarvests = harvests.filter(h => 
     mapFilter === 'All' || h.category === mapFilter
   )
 
@@ -206,7 +183,6 @@ export default function BuyerDashboard() {
     const updatedProfile = { ...profile, full_name: accountForm.name, location: accountForm.location, phone: accountForm.phone }
     setProfile(updatedProfile)
     
-    // Save to local storage for demo mode persistence
     const demoUserStr = localStorage.getItem('agrilink_user')
     if (demoUserStr) {
       const demoUser = JSON.parse(demoUserStr)
@@ -219,10 +195,39 @@ export default function BuyerDashboard() {
     setTimeout(() => setAccountMessage(''), 3000)
   }
 
-  const handleExpressInterest = (id: string) => {
-    setInterestedIds(prev =>
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    )
+  // Updated handleExpressInterest function - only sends once per harvest
+  const handleExpressInterest = async (harvest: any) => {
+    const id = harvest.id
+    const alreadyInterested = interestedIds.includes(id)
+    
+    if (alreadyInterested) return // Do nothing if already sent
+
+    // Optimistically update UI
+    setInterestedIds(prev => [...prev, id])
+
+    const buyerName = profile?.full_name || user?.user_metadata?.full_name || user?.full_name || 'A buyer'
+    const buyerId = user?.id || null
+
+    const { error } = await supabase
+      .from('notifications')
+      .insert({
+        farmer_id: harvest.farmer_id,
+        buyer_id: buyerId,
+        harvest_id: harvest.id,
+        buyer_name: buyerName,
+        crop_type: harvest.crop_type,
+        quantity: String(harvest.quantity),
+        unit: harvest.unit,
+        is_read: false
+      })
+
+    if (error) {
+      console.error('Failed to send notification:', error)
+      // Revert UI if insert failed
+      setInterestedIds(prev => prev.filter(i => i !== id))
+    } else {
+      console.log('Interest notification sent to farmer')
+    }
   }
 
   const handleSendAi = (e: React.FormEvent) => {
@@ -242,13 +247,17 @@ export default function BuyerDashboard() {
     }, 1000)
   }
 
-  const filteredHarvests = AVAILABLE_HARVESTS.filter(h => {
-    const matchSearch = h.crop.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        h.province.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        h.farmer.toLowerCase().includes(searchQuery.toLowerCase())
-    
+  const filteredHarvests = harvests.filter(h => {
+    const cropType = h.crop_type || ''
+    const province = h.province || ''
+    const farmerName = h.profiles?.full_name || ''
+
+    const matchSearch = cropType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        province.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        farmerName.toLowerCase().includes(searchQuery.toLowerCase())
+
     const matchCategory = marketCategory === 'All Categories' || h.category === marketCategory
-    const matchRegion = marketRegion === 'All Regions' || h.province.includes(marketRegion)
+    const matchRegion = marketRegion === 'All Regions' || province.includes(marketRegion)
 
     return matchSearch && matchCategory && matchRegion
   })
@@ -327,7 +336,7 @@ export default function BuyerDashboard() {
         </button>
       </div>
 
-      {/* ── ALIGNED HEADER WITH PRIMARY BRAND ELEMENT ── */}
+      {/* ── HEADER ── */}
       <header className="bg-white border-b border-[#E5EAD7] sticky top-0 z-40 shadow-sm w-full">
         <div className="max-w-[1600px] mx-auto px-6 lg:px-10 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -337,7 +346,6 @@ export default function BuyerDashboard() {
             >
               <Menu className="w-6 h-6 text-[#1A2E05]" />
             </button>
-            {/* Primary Brand Element */}
             <div className="hidden sm:flex items-center gap-2">
               <div className="bg-[#4D7C0F] p-1.5 rounded-lg">
                 <Sprout className="text-white w-5 h-5" />
@@ -347,7 +355,6 @@ export default function BuyerDashboard() {
           </div>
 
           <div className="flex items-center gap-4 mr-13">
-            {/* Profile Button Only (Notifications Removed) */}
             <button
               onClick={() => setActiveView('account')}
               className="flex items-center gap-3 hover:bg-gray-50 p-1.5 rounded-xl transition-colors"
@@ -361,7 +368,7 @@ export default function BuyerDashboard() {
         </div>
       </header>
 
-      {/* ── COLLAPSIBLE SIDE DRAWER ── */}
+      {/* ── SIDE DRAWER ── */}
       <AnimatePresence>
         {isSidebarOpen && (
           <>
@@ -428,7 +435,7 @@ export default function BuyerDashboard() {
         )}
       </AnimatePresence>
 
-      {/* ── MAIN CONTENT AREA ── */}
+      {/* ── MAIN CONTENT ── */}
       <div className="max-w-[1400px] mx-auto px-6 lg:px-10 py-10 space-y-10">
 
         {/* Marketplace View */}
@@ -457,7 +464,7 @@ export default function BuyerDashboard() {
               </div>
               
               <div className="flex flex-col sm:flex-row gap-4">
-                {/* Custom Categories Dropdown - z-index lowered to 30 */}
+                {/* Categories Dropdown */}
                 <div className="relative custom-dropdown z-30">
                   <button 
                     onClick={() => setOpenDropdown(openDropdown === 'category' ? null : 'category')}
@@ -492,7 +499,7 @@ export default function BuyerDashboard() {
                   </AnimatePresence>
                 </div>
 
-                {/* Custom Regions Dropdown - z-index lowered to 20 */}
+                {/* Regions Dropdown */}
                 <div className="relative custom-dropdown z-20">
                   <button 
                     onClick={() => setOpenDropdown(openDropdown === 'region' ? null : 'region')}
@@ -543,12 +550,15 @@ export default function BuyerDashboard() {
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {filteredHarvests.map(harvest => {
                   const isInterested = interestedIds.includes(harvest.id)
+                  const displayDate = harvest.harvest_date
+                    ? new Date(harvest.harvest_date).toLocaleDateString()
+                    : 'N/A'
                   return (
                     <div key={harvest.id} className="group bg-white rounded-[32px] border border-[#E5EAD7] p-6 hover:shadow-xl transition-all flex flex-col h-full z-0">
                       {/* Product Image */}
                       <div className="w-full h-40 bg-[#F1F4E8] rounded-2xl mb-5 flex items-center justify-center overflow-hidden shrink-0 border border-[#E5EAD7]">
-                        {harvest.imageUrl ? (
-                          <img src={harvest.imageUrl} alt={harvest.crop} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                        {harvest.image_url ? (
+                          <img src={harvest.image_url} alt={harvest.crop_type} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                         ) : (
                           <ImageIcon className="w-10 h-10 text-[#4D7C0F]/30" />
                         )}
@@ -558,7 +568,7 @@ export default function BuyerDashboard() {
                       <div className="flex items-center justify-between mb-4">
                         <span className={cn(
                           "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest",
-                          harvest.status === 'Available' ? "bg-[#ECFCCB] text-[#4D7C0F]" : "bg-yellow-100 text-yellow-800"
+                          harvest.status === 'active' ? "bg-[#ECFCCB] text-[#4D7C0F]" : "bg-yellow-100 text-yellow-800"
                         )}>
                           {harvest.status}
                         </span>
@@ -569,15 +579,15 @@ export default function BuyerDashboard() {
 
                       <div className="flex-1 space-y-4">
                         <div className="space-y-1">
-                          <p className="text-[10px] font-bold text-[#A16207] uppercase tracking-widest">{harvest.crop}</p>
+                          <p className="text-[10px] font-bold text-[#A16207] uppercase tracking-widest">{harvest.crop_type}</p>
                           <div className="flex justify-between items-end">
-                            <h3 className="text-2xl font-black text-[#1A2E05] leading-none">{harvest.qty}</h3>
-                            <p className="text-xl font-black text-[#4D7C0F]">{harvest.price}</p>
+                            <h3 className="text-2xl font-black text-[#1A2E05] leading-none">{harvest.quantity} {harvest.unit}</h3>
+                            <p className="text-xl font-black text-[#4D7C0F]">₱{harvest.price_per_unit ?? '—'}</p>
                           </div>
                         </div>
 
                         <p className="text-sm text-[#5B6D44] border-t border-[#E5EAD7] pt-3">
-                          Farmer: <strong className="text-[#1A2E05]">{harvest.farmer}</strong>
+                          Farmer: <strong className="text-[#1A2E05]">{harvest.profiles?.full_name || 'Unknown'}</strong>
                         </p>
 
                         <div className="grid grid-cols-2 gap-4 pb-4">
@@ -585,14 +595,14 @@ export default function BuyerDashboard() {
                             <MapPin className="w-4 h-4 text-[#4D7C0F] shrink-0 mt-0.5" />
                             <div className="flex flex-col">
                               <span className="text-[10px] font-bold uppercase text-[#4D7C0F]">Location</span>
-                              <span className="text-xs leading-tight">{harvest.province}</span>
+                              <span className="text-xs leading-tight">{harvest.barangay}, {harvest.province}</span>
                             </div>
                           </div>
                           <div className="flex items-start gap-2 text-[#5B6D44]">
                             <Calendar className="w-4 h-4 text-[#4D7C0F] shrink-0 mt-0.5" />
                             <div className="flex flex-col">
                               <span className="text-[10px] font-bold uppercase text-[#4D7C0F]">Target Date</span>
-                              <span className="text-xs leading-tight">{harvest.date}</span>
+                              <span className="text-xs leading-tight">{displayDate}</span>
                             </div>
                           </div>
                         </div>
@@ -600,7 +610,7 @@ export default function BuyerDashboard() {
 
                       <div className="pt-2 border-t border-[#F1F4E8]">
                         <button
-                          onClick={() => handleExpressInterest(harvest.id)}
+                          onClick={() => handleExpressInterest(harvest)}
                           className={cn(
                             "w-full py-3 rounded-2xl text-sm font-bold transition-all shadow-sm flex items-center justify-center gap-2",
                             isInterested 
@@ -608,7 +618,7 @@ export default function BuyerDashboard() {
                               : "bg-[#4D7C0F] text-white hover:bg-[#3F6212]"
                           )}
                         >
-                          {isInterested ? <><CheckCircle className="w-4 h-4" /> Interested Sent</> : 'Contact Farmer'}
+                          {isInterested ? <><CheckCircle className="w-4 h-4" /> Sent</> : 'Contact Farmer'}
                         </button>
                       </div>
                     </div>
@@ -639,7 +649,6 @@ export default function BuyerDashboard() {
                 <p className="text-[#5B6D44]">Find available products in Mindanao</p>
               </div>
 
-              {/* Custom Map Filter Dropdown - z-index lowered to 30 */}
               <div className="relative custom-dropdown w-full md:w-56 z-30">
                 <button 
                   onClick={() => setOpenDropdown(openDropdown === 'mapFilter' ? null : 'mapFilter')}
@@ -690,7 +699,7 @@ export default function BuyerDashboard() {
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                {filteredMapHarvests.map((h) => (
+                {filteredMapHarvests.filter(h => h.lat && h.lng).map((h) => (
                   <Marker key={h.id} position={[h.lat, h.lng]}>
                     <Popup>
                       <div className="p-4 min-w-[200px] space-y-3">
@@ -698,7 +707,7 @@ export default function BuyerDashboard() {
                           <span className="px-2 py-0.5 bg-[#FEF9C3] text-[#A16207] text-[8px] font-black uppercase rounded-full tracking-wider">
                             {h.category}
                           </span>
-                          <p className="text-[10px] font-bold text-[#5B6D44] uppercase tracking-widest leading-none mt-1">{h.cropType}</p>
+                          <p className="text-[10px] font-bold text-[#5B6D44] uppercase tracking-widest leading-none mt-1">{h.crop_type}</p>
                           <h4 className="font-black text-[#1A2E05] text-lg">{h.quantity} {h.unit}</h4>
                         </div>
                         <div className="space-y-1">
@@ -708,7 +717,7 @@ export default function BuyerDashboard() {
                           </div>
                           <div className="flex items-center gap-2 text-[11px] text-[#5B6D44]">
                             <Sprout className="w-3 h-3" />
-                            Harvesting {h.harvestDate}
+                            Harvesting {h.harvest_date ? new Date(h.harvest_date).toLocaleDateString() : 'N/A'}
                           </div>
                         </div>
                         <button className="w-full py-2 bg-[#4D7C0F] text-white text-xs font-bold rounded-lg hover:bg-[#3F6212] transition-colors flex items-center justify-center gap-1">
@@ -721,7 +730,7 @@ export default function BuyerDashboard() {
                 ))}
               </MapContainer>
 
-              {/* Map Legend - z-index lowered to 30 */}
+              {/* Map Legend */}
               <div className="absolute bottom-6 left-6 z-30 bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-[#E5EAD7] shadow-lg space-y-3 hidden md:block">
                 <p className="text-xs font-bold text-[#1A2E05] uppercase tracking-wider">Map Legend</p>
                 <div className="space-y-2">
@@ -742,7 +751,7 @@ export default function BuyerDashboard() {
           </section>
         )}
 
-        {/* Account View (Editable) */}
+        {/* Account View */}
         {activeView === 'account' && (
           <div className="bg-white rounded-[32px] shadow-xl border border-[#E5EAD7] max-w-2xl mx-auto overflow-hidden">
             <div className="bg-[#4D7C0F] p-8 text-white flex items-center gap-4 relative overflow-hidden">

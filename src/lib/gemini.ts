@@ -1,4 +1,4 @@
-const GROQ_API_KEY = 'your_groq_key_here'
+const GROQ_API_KEY = 'your key here'
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 export interface ParsedHarvestData {

@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import type { Harvest } from '../types'
-import { MOCK_HARVESTS } from '../mockData'
 import HarvestCard from '../components/HarvestCard'
 import HarvestForm from '../components/HarvestForm'
 import { Plus, LayoutGrid, List, Sprout, Sparkles, X, LogOut, Menu, Bell, User as UserIcon, Users, History, Search } from 'lucide-react'
@@ -10,29 +9,33 @@ import { supabase } from '../lib/supabase'
 import { getSmartListingRecommendations } from '../lib/gemini'
 
 // ── INTERESTED BUYERS VIEW ──
-const InterestedBuyersView = () => {
+const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
   const [filter, setFilter] = useState<'new' | 'completed' | 'all'>('new')
-  const [buyers, setBuyers] = useState([
-    { 
-      id: '1', 
-      contactNumber: '0912 345 6789', 
-      orderDate: 'May 12, 2026', 
-      location: 'Manolo Fortich, Bukidnon', 
-      product: 'Corn (1 cavan)', 
-      status: 'new' as const 
-    },
-    { 
-      id: '2', 
-      contactNumber: '0998 765 4321', 
-      orderDate: 'May 10, 2026', 
-      location: 'Cagayan de Oro, Misamis Oriental', 
-      product: 'Tomato (50 kg)', 
-      status: 'new' as const 
-    },
-  ])
+  const [buyers, setBuyers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const markCompleted = (id: string) => {
-    setBuyers(prev => prev.map(b => b.id === id ? { ...b, status: 'completed' as const } : b))
+  useEffect(() => {
+    const fetchBuyers = async () => {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('buyer_interests')
+        .select('*')
+        .eq('farmer_id', farmerId)
+        .order('created_at', { ascending: false })
+      if (!error && data) setBuyers(data)
+      setLoading(false)
+    }
+    if (farmerId) fetchBuyers()
+  }, [farmerId])
+
+  const markCompleted = async (id: string) => {
+    const { error } = await supabase
+      .from('buyer_interests')
+      .update({ status: 'completed' })
+      .eq('id', id)
+    if (!error) {
+      setBuyers(prev => prev.map(b => b.id === id ? { ...b, status: 'completed' } : b))
+    }
   }
 
   const filtered = buyers.filter(b => filter === 'all' ? true : b.status === filter)
@@ -57,12 +60,16 @@ const InterestedBuyersView = () => {
         </div>
       </div>
 
-      {filtered.length > 0 ? (
+      {loading ? (
+        <div className="py-20 text-center">
+          <div className="w-8 h-8 border-4 border-[#4D7C0F] border-t-transparent rounded-full animate-spin mx-auto" />
+        </div>
+      ) : filtered.length > 0 ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map(buyer => (
             <div key={buyer.id} className="group bg-white rounded-[32px] border border-[#E5EAD7] p-6 hover:shadow-xl transition-all relative overflow-hidden flex flex-col h-full">
               <div className="flex justify-between items-start mb-4">
-                <span className="font-black text-xl text-[#1A2E05]">{buyer.contactNumber}</span>
+                <span className="font-black text-xl text-[#1A2E05]">{buyer.contact_number}</span>
                 <span className={cn(
                   "text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-widest",
                   buyer.status === 'new' ? "bg-[#ECFCCB] text-[#4D7C0F]" : "bg-gray-100 text-gray-600"
@@ -72,7 +79,7 @@ const InterestedBuyersView = () => {
               </div>
               <div className="flex-1 space-y-3">
                 <p className="text-sm text-[#5B6D44]"><strong>Product:</strong> {buyer.product}</p>
-                <p className="text-sm text-[#5B6D44]"><strong>Date Ordered:</strong> {buyer.orderDate}</p>
+                <p className="text-sm text-[#5B6D44]"><strong>Date Ordered:</strong> {new Date(buyer.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                 <p className="text-sm text-[#5B6D44]"><strong>Location:</strong> {buyer.location}</p>
               </div>
               {buyer.status === 'new' && (
@@ -125,12 +132,70 @@ export default function FarmerDashboard() {
     phone: ''
   })
 
-  // Notifications State
-  const [notifications, setNotifications] = useState([
-    { id: 1, text: "Rona is interested in your 4 sack of rice.", read: false }
-  ])
-  const unreadCount = notifications.filter(n => !n.read).length
+  // ── Notifications State ──
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
 
+  useEffect(() => {
+    if (!user) return
+
+    const fetchNotifications = async () => {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('farmer_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (!error && data) {
+        setNotifications(data)
+        setUnreadCount(data.filter((n: any) => !n.is_read).length)
+      }
+    }
+
+    fetchNotifications()
+
+    // Real-time: auto-update when new notification arrives
+    const channel = supabase
+      .channel('farmer-notifications-' + user.id)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `farmer_id=eq.${user.id}`
+      }, (payload) => {
+        setNotifications(prev => [payload.new, ...prev])
+        setUnreadCount(prev => prev + 1)
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [user])
+
+  // ── Mark all notifications as read (updates both UI and DB) ──
+  const markNotificationsRead = async () => {
+    setShowNotificationMenu(prev => !prev)
+    if (unreadCount === 0) return
+    setUnreadCount(0)
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+    await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('farmer_id', user.id)
+      .eq('is_read', false)
+  }
+
+  // ── Harvests & History from Supabase ──
+  const [harvests, setHarvests] = useState<Harvest[]>([])
+  const [historyHarvests, setHistoryHarvests] = useState<Harvest[]>([])
+  const [loadingHarvests, setLoadingHarvests] = useState(true)
+
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [editingHarvest, setEditingHarvest] = useState<Harvest | null>(null)
+  const [viewState, setViewState] = useState<'grid' | 'list'>('grid')
+  const [aiRecommendation, setAiRecommendation] = useState<any>(null)
+  const [historySearch, setHistorySearch] = useState('')
+
+  // ── Load user session ──
   useEffect(() => {
     const loadUser = async () => {
       setLoadingUser(true)
@@ -149,7 +214,6 @@ export default function FarmerDashboard() {
       }
       setLoadingUser(false)
     }
-
     loadUser()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -163,11 +227,10 @@ export default function FarmerDashboard() {
         localStorage.removeItem('agrilink_auth')
       }
     })
-
     return () => subscription.unsubscribe()
   }, [])
 
-  // Update Account Form state when profile loads
+  // ── Update account form when profile loads ──
   useEffect(() => {
     if (profile || user) {
       setAccountForm({
@@ -178,7 +241,7 @@ export default function FarmerDashboard() {
     }
   }, [profile, user])
 
-  // Close notification menu if clicked outside
+  // ── Close notification menu on outside click ──
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
@@ -189,76 +252,108 @@ export default function FarmerDashboard() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  // Harvests & History States
-  const [harvests, setHarvests] = useState<Harvest[]>(() => {
-    const saved = localStorage.getItem('harvests')
-    if (saved) return JSON.parse(saved)
-    return MOCK_HARVESTS
-  })
-
-  const [historyHarvests, setHistoryHarvests] = useState<Harvest[]>(() => {
-    const savedHistory = localStorage.getItem('historyHarvests')
-    if (savedHistory) return JSON.parse(savedHistory)
-    return []
-  })
-
-  useEffect(() => {
-    localStorage.setItem('harvests', JSON.stringify(harvests))
-  }, [harvests])
-
-  useEffect(() => {
-    localStorage.setItem('historyHarvests', JSON.stringify(historyHarvests))
-  }, [historyHarvests])
-
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [editingHarvest, setEditingHarvest] = useState<Harvest | null>(null)
-  const [viewState, setViewState] = useState<'grid' | 'list'>('grid')
-  const [aiRecommendation, setAiRecommendation] = useState<any>(null)
-
-  const fetchRecommendations = async () => {
-    if (harvests.length === 0 || !profile) return
-    setLoadingAI(true)
-    setAiRecommendation(null)
-    const latestHarvest = harvests[0]
-    const provinceName = latestHarvest.province || profile.location || 'Bukidnon'
-    const cropTypeName = latestHarvest.cropType || 'crop'
-    const rec = await getSmartListingRecommendations(
-      cropTypeName,
-      provinceName,
-      latestHarvest.harvestDate || new Date().toISOString().split('T')[0]
-    )
-    setAiRecommendation(rec)
-    setLoadingAI(false)
+  // ── Fetch harvests from Supabase ──
+  const fetchHarvests = async (userId: string) => {
+    setLoadingHarvests(true)
+    const { data, error } = await supabase
+      .from('harvests')
+      .select('*')
+      .eq('farmer_id', userId)
+      .neq('status', 'sold')
+      .order('created_at', { ascending: false })
+    if (!error && data) setHarvests(data as Harvest[])
+    setLoadingHarvests(false)
   }
 
-  const handleDeleteHarvest = (id: string) => {
-    setHarvests(harvests.filter(h => h.id !== id))
+  const fetchHistory = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('harvests')
+      .select('*')
+      .eq('farmer_id', userId)
+      .eq('status', 'sold')
+      .order('created_at', { ascending: false })
+    if (!error && data) setHistoryHarvests(data as Harvest[])
   }
 
-  const handleSoldOut = (id: string) => {
-    const itemToMove = harvests.find(h => h.id === id)
-    if (itemToMove) {
-      const soldItem = { ...itemToMove, status: 'sold' }
-      setHistoryHarvests([soldItem, ...historyHarvests])
-      setHarvests(harvests.filter(h => h.id !== id))
+  useEffect(() => {
+    if (user?.id) {
+      fetchHarvests(user.id)
+      fetchHistory(user.id)
+    }
+  }, [user])
+
+  // ── CRUD handlers ──
+  const handleAddHarvest = async (newHarvest: any) => {
+    if (!user?.id) return
+
+    let image_url = null
+    if (newHarvest.image instanceof File) {
+      const file = newHarvest.image
+      const ext = file.name.split('.').pop()
+      const path = `harvests/${user.id}/${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('harvest-images')
+        .upload(path, file, { upsert: true })
+      console.log('Upload error:', uploadError)
+      console.log('Upload path:', path)
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage
+          .from('harvest-images')
+          .getPublicUrl(path)
+        image_url = urlData.publicUrl
+        console.log('image_url:', image_url)
+      }
+    }
+
+    if (editingHarvest) {
+      const { data, error } = await supabase
+        .from('harvests')
+        .update({
+          crop_type: newHarvest.crop_type,
+          category: newHarvest.category,
+          quantity: newHarvest.quantity,
+          unit: newHarvest.unit,
+          harvest_date: newHarvest.harvest_date,
+          province: newHarvest.province,
+          municipality: newHarvest.municipality,
+          barangay: newHarvest.barangay,
+          price_per_unit: newHarvest.price_per_unit,
+          description: newHarvest.description,
+          status: newHarvest.status,
+          lat: newHarvest.lat,
+          lng: newHarvest.lng,
+          ...(image_url && { image_url }),
+        })
+        .eq('id', editingHarvest.id)
+        .select()
+        .single()
+      if (!error && data) {
+        setHarvests(prev => [data as Harvest, ...prev])
+      }
+      setShowAddForm(false)
     }
   }
 
-  const handleAddHarvest = (newHarvest: Partial<Harvest>) => {
-    if (editingHarvest) {
-      setHarvests(harvests.map(h => h.id === editingHarvest.id ? { ...h, ...newHarvest } as Harvest : h))
-      setEditingHarvest(null)
-      setShowAddForm(false)
-    } else {
-      const fullHarvest: Harvest = {
-        ...newHarvest as Harvest,
-        id: `h-${Date.now()}`,
-        farmerId: user?.id ?? 'unknown',
-        lat: 8.2917,
-        lng: 124.9667,
-      }
-      setHarvests([fullHarvest, ...harvests])
-      setShowAddForm(false)
+  const handleDeleteHarvest = async (id: string) => {
+    const { error } = await supabase
+      .from('harvests')
+      .delete()
+      .eq('id', id)
+    if (!error) {
+      setHarvests(prev => prev.filter(h => h.id !== id))
+    }
+  }
+
+  const handleSoldOut = async (id: string) => {
+    const { data, error } = await supabase
+      .from('harvests')
+      .update({ status: 'sold' })
+      .eq('id', id)
+      .select()
+      .single()
+    if (!error && data) {
+      setHistoryHarvests(prev => [data as Harvest, ...prev])
+      setHarvests(prev => prev.filter(h => h.id !== id))
     }
   }
 
@@ -268,18 +363,21 @@ export default function FarmerDashboard() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const handleSaveAccount = () => {
-    const updatedProfile = { ...profile, full_name: accountForm.name, location: accountForm.location, phone: accountForm.phone }
+  const handleSaveAccount = async () => {
+    const updatedProfile = {
+      ...profile,
+      full_name: accountForm.name,
+      location: accountForm.location,
+      phone: accountForm.phone
+    }
     setProfile(updatedProfile)
-    
-    // Save to local storage for demo mode persistence
+    await supabase.auth.updateUser({ data: updatedProfile })
     const demoUserStr = localStorage.getItem('agrilink_user')
     if (demoUserStr) {
       const demoUser = JSON.parse(demoUserStr)
       demoUser.user_metadata = updatedProfile
       localStorage.setItem('agrilink_user', JSON.stringify(demoUser))
     }
-    
     setIsEditingAccount(false)
     setAccountMessage('Changes saved successfully!')
     setTimeout(() => setAccountMessage(''), 3000)
@@ -294,20 +392,30 @@ export default function FarmerDashboard() {
     window.location.href = '/'
   }
 
-  const markNotificationsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })))
+  const fetchRecommendations = async () => {
+    if (harvests.length === 0 || !profile) return
+    setLoadingAI(true)
+    setAiRecommendation(null)
+    const latestHarvest = harvests[0]
+    const provinceName = latestHarvest.province || profile.location || 'Bukidnon'
+    const cropTypeName = latestHarvest.crop_type || 'crop'
+    const rec = await getSmartListingRecommendations(
+      cropTypeName,
+      provinceName,
+      latestHarvest.harvest_date || new Date().toISOString().split('T')[0]
+    )
+    setAiRecommendation(rec)
+    setLoadingAI(false)
   }
-
-  // ── Dynamic header title ──
-  const headerTitle = {
-    dashboard: 'My Harvest Dashboard',
-    history: 'History Dashboard',
-    buyers: 'Interested Buyers',
-    account: 'Account',
-  }[activeView]
 
   const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.full_name || 'Farmer'
   const userLocation = profile?.location || profile?.province || user?.user_metadata?.location || 'Bukidnon'
+
+  const filteredHistory = historyHarvests.filter(h =>
+    !historySearch ||
+    h.crop_type?.toLowerCase().includes(historySearch.toLowerCase()) ||
+    h.province?.toLowerCase().includes(historySearch.toLowerCase())
+  )
 
   if (loadingUser) {
     return (
@@ -395,17 +503,13 @@ export default function FarmerDashboard() {
         </button>
       </div>
 
-      {/* ── ALIGNED HEADER WITH PRIMARY BRAND ELEMENT ── */}
+      {/* ── HEADER ── */}
       <header className="bg-white border-b border-[#E5EAD7] sticky top-0 z-40 shadow-sm w-full">
         <div className="max-w-[1600px] mx-auto px-6 lg:px-10 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
+            <button onClick={() => setIsSidebarOpen(true)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <Menu className="w-6 h-6 text-[#1A2E05]" />
             </button>
-            {/* Primary Brand Element */}
             <div className="hidden sm:flex items-center gap-2">
               <div className="bg-[#4D7C0F] p-1.5 rounded-lg">
                 <Sprout className="text-white w-5 h-5" />
@@ -415,13 +519,10 @@ export default function FarmerDashboard() {
           </div>
 
           <div className="flex items-center gap-4 mr-13">
-            {/* Notification Menu */}
+            {/* ── Notifications Bell ── */}
             <div className="relative" ref={notificationRef}>
               <button
-                onClick={() => {
-                  setShowNotificationMenu(!showNotificationMenu)
-                  markNotificationsRead()
-                }}
+                onClick={markNotificationsRead}
                 className="p-2 relative hover:bg-gray-100 rounded-lg text-[#5B6D44] transition-colors"
               >
                 <Bell className="w-6 h-6" />
@@ -431,7 +532,6 @@ export default function FarmerDashboard() {
                   </span>
                 )}
               </button>
-
               <AnimatePresence>
                 {showNotificationMenu && (
                   <motion.div
@@ -443,18 +543,36 @@ export default function FarmerDashboard() {
                     <div className="bg-gray-50 border-b border-[#E5EAD7] px-4 py-3 flex justify-between items-center">
                       <h4 className="font-bold text-[#1A2E05] text-sm">Notifications ({notifications.length})</h4>
                       {unreadCount > 0 && (
-                        <button onClick={(e) => { e.stopPropagation(); markNotificationsRead(); }} className="text-xs font-bold text-[#4D7C0F] hover:underline">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); markNotificationsRead() }}
+                          className="text-xs font-bold text-[#4D7C0F] hover:underline"
+                        >
                           Read all
                         </button>
                       )}
                     </div>
                     <div className="max-h-80 overflow-y-auto">
                       {notifications.length > 0 ? notifications.map((n) => (
-                        <div key={n.id} className={cn("p-4 transition-colors cursor-pointer flex gap-3 items-start border-b border-gray-50 last:border-0", !n.read ? "bg-white hover:bg-gray-50" : "bg-gray-50 opacity-70")}>
+                        <div
+                          key={n.id}
+                          className={cn(
+                            "p-4 transition-colors cursor-pointer flex gap-3 items-start border-b border-gray-50 last:border-0",
+                            !n.is_read ? "bg-white hover:bg-gray-50" : "bg-gray-50 opacity-70"
+                          )}
+                        >
                           <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                             <Users className="w-4 h-4 text-green-700" />
                           </div>
-                          <p className="text-[#5B6D44] text-sm leading-snug">{n.text}</p>
+                          {/* ── Buyer name from DB, not hardcoded ── */}
+                          <div className="flex flex-col gap-0.5">
+                            <p className="text-[#1A2E05] text-sm font-bold">{n.buyer_name}</p>
+                            <p className="text-[#5B6D44] text-sm leading-snug">
+                              is interested in your {n.quantity} {n.unit} of {n.crop_type}.
+                            </p>
+                            <p className="text-[10px] text-gray-400 mt-1">
+                              {new Date(n.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
                         </div>
                       )) : (
                         <div className="p-6 text-center text-sm text-gray-500">No notifications yet.</div>
@@ -479,69 +597,50 @@ export default function FarmerDashboard() {
         </div>
       </header>
 
-      {/* ── COLLAPSIBLE SIDE DRAWER ── */}
+      {/* ── SIDE DRAWER ── */}
       <AnimatePresence>
         {isSidebarOpen && (
           <>
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setIsSidebarOpen(false)}
               className="fixed inset-0 bg-black/40 z-50 backdrop-blur-sm"
             />
             <motion.div
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
+              initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="fixed top-0 left-0 h-full w-72 bg-white shadow-2xl z-50 flex flex-col"
             >
               <div className="p-6 flex items-center justify-between border-b border-[#E5EAD7]">
                 <div className="flex items-center gap-2">
-                  <div className="bg-[#4D7C0F] p-1.5 rounded-lg">
-                    <Sprout className="text-white w-6 h-6" />
-                  </div>
+                  <div className="bg-[#4D7C0F] p-1.5 rounded-lg"><Sprout className="text-white w-6 h-6" /></div>
                   <span className="text-xl font-black text-[#1A2E05]">AgriLink</span>
                 </div>
                 <button onClick={() => setIsSidebarOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
                   <X className="w-5 h-5 text-gray-500" />
                 </button>
               </div>
-
               <div className="flex-1 flex flex-col p-4 gap-2 overflow-y-auto">
-                <button
-                  onClick={() => { setActiveView('dashboard'); setIsSidebarOpen(false); }}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-4 rounded-2xl font-bold transition-all",
-                    activeView === 'dashboard' ? "bg-[#F1F4E8] text-[#4D7C0F] shadow-sm" : "text-[#5B6D44] hover:bg-gray-50"
-                  )}
-                >
-                  <Sprout className="w-5 h-5" /> Harvest Dashboard
-                </button>
-                <button
-                  onClick={() => { setActiveView('buyers'); setIsSidebarOpen(false); }}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-4 rounded-2xl font-bold transition-all",
-                    activeView === 'buyers' ? "bg-[#F1F4E8] text-[#4D7C0F] shadow-sm" : "text-[#5B6D44] hover:bg-gray-50"
-                  )}
-                >
-                  <Users className="w-5 h-5" /> Interested Buyers
-                </button>
-                <button
-                  onClick={() => { setActiveView('history'); setIsSidebarOpen(false); }}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-4 rounded-2xl font-bold transition-all",
-                    activeView === 'history' ? "bg-[#F1F4E8] text-[#4D7C0F] shadow-sm" : "text-[#5B6D44] hover:bg-gray-50"
-                  )}
-                >
-                  <History className="w-5 h-5" /> History Dashboard
-                </button>
+                {[
+                  { view: 'dashboard', icon: <Sprout className="w-5 h-5" />, label: 'Harvest Dashboard' },
+                  { view: 'buyers', icon: <Users className="w-5 h-5" />, label: 'Interested Buyers' },
+                  { view: 'history', icon: <History className="w-5 h-5" />, label: 'History Dashboard' },
+                ].map(({ view, icon, label }) => (
+                  <button
+                    key={view}
+                    onClick={() => { setActiveView(view as any); setIsSidebarOpen(false) }}
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-4 rounded-2xl font-bold transition-all",
+                      activeView === view ? "bg-[#F1F4E8] text-[#4D7C0F] shadow-sm" : "text-[#5B6D44] hover:bg-gray-50"
+                    )}
+                  >
+                    {icon} {label}
+                  </button>
+                ))}
               </div>
-
               <div className="p-4 border-t border-[#E5EAD7]">
                 <button
-                  onClick={() => { setActiveView('account'); setIsSidebarOpen(false); }}
+                  onClick={() => { setActiveView('account'); setIsSidebarOpen(false) }}
                   className={cn(
                     "flex items-center gap-3 px-4 py-4 rounded-2xl font-bold w-full transition-all",
                     activeView === 'account' ? "bg-[#F1F4E8] text-[#4D7C0F] shadow-sm" : "text-[#5B6D44] hover:bg-gray-50"
@@ -555,19 +654,15 @@ export default function FarmerDashboard() {
         )}
       </AnimatePresence>
 
-      {/* ── MODAL OVERLAY for Add/Edit Harvest ── */}
+      {/* ── MODAL: Add / Edit Harvest ── */}
       <AnimatePresence>
         {showAddForm && (
           <>
-            {/* Backdrop */}
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => { setShowAddForm(false); setEditingHarvest(null) }}
               className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm"
             />
-            {/* Modal panel */}
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -598,13 +693,13 @@ export default function FarmerDashboard() {
         )}
       </AnimatePresence>
 
-      {/* ── MAIN CONTENT AREA ── */}
+      {/* ── MAIN CONTENT ── */}
       <div className="max-w-[1400px] mx-auto px-6 lg:px-10 py-10 space-y-10">
 
         {/* Dashboard View */}
         {activeView === 'dashboard' && (
           <>
-            {/* GREEN HERO BANNER */}
+            {/* Hero Banner */}
             <div className="bg-[#4D7C0F] rounded-[32px] p-8 md:p-10 shadow-xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
                 <Sprout className="w-64 h-64" />
@@ -624,12 +719,8 @@ export default function FarmerDashboard() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => {
-                      if (showAddForm) {
-                        setShowAddForm(false)
-                        setEditingHarvest(null)
-                      } else {
-                        setShowAddForm(true)
-                      }
+                      if (showAddForm) { setShowAddForm(false); setEditingHarvest(null) }
+                      else setShowAddForm(true)
                     }}
                     className={cn(
                       "px-4 py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 text-sm",
@@ -638,29 +729,18 @@ export default function FarmerDashboard() {
                         : "bg-white text-[#4D7C0F] border border-[#4D7C0F] hover:bg-[#F1F4E8]"
                     )}
                   >
-                    {showAddForm ? (
-                      <><X className="w-4 h-4" /> Cancel</>
-                    ) : (
-                      <><Plus className="w-4 h-4" /> New Harvest</>
-                    )}
+                    {showAddForm ? <><X className="w-4 h-4" /> Cancel</> : <><Plus className="w-4 h-4" /> New Harvest</>}
                   </button>
-
                   <div className="flex items-center bg-[#F1F4E8] p-1 rounded-xl">
                     <button
                       onClick={() => setViewState('grid')}
-                      className={cn(
-                        "p-2 rounded-lg transition-all",
-                        viewState === 'grid' ? "bg-white text-[#4D7C0F] shadow-sm" : "text-[#5B6D44]"
-                      )}
+                      className={cn("p-2 rounded-lg transition-all", viewState === 'grid' ? "bg-white text-[#4D7C0F] shadow-sm" : "text-[#5B6D44]")}
                     >
                       <LayoutGrid className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => setViewState('list')}
-                      className={cn(
-                        "p-2 rounded-lg transition-all",
-                        viewState === 'list' ? "bg-white text-[#4D7C0F] shadow-sm" : "text-[#5B6D44]"
-                      )}
+                      className={cn("p-2 rounded-lg transition-all", viewState === 'list' ? "bg-white text-[#4D7C0F] shadow-sm" : "text-[#5B6D44]")}
                     >
                       <List className="w-4 h-4" />
                     </button>
@@ -668,13 +748,12 @@ export default function FarmerDashboard() {
                 </div>
               </div>
 
-              {harvests.length > 0 ? (
-                <div
-                  className={cn(
-                    "grid gap-6",
-                    viewState === 'grid' ? "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"
-                  )}
-                >
+              {loadingHarvests ? (
+                <div className="py-20 flex justify-center">
+                  <div className="w-10 h-10 border-4 border-[#4D7C0F] border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : harvests.length > 0 ? (
+                <div className={cn("grid gap-6", viewState === 'grid' ? "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1")}>
                   {harvests.map((harvest) => (
                     <HarvestCard
                       key={harvest.id}
@@ -683,6 +762,7 @@ export default function FarmerDashboard() {
                       variant={viewState}
                       onSoldOut={handleSoldOut}
                       onEdit={handleEditHarvest}
+                      onDelete={handleDeleteHarvest}
                     />
                   ))}
                 </div>
@@ -704,34 +784,28 @@ export default function FarmerDashboard() {
         {/* History View */}
         {activeView === 'history' && (
           <section className="relative space-y-8 bg-white/40 p-8 rounded-[40px] border border-[#E5EAD7] overflow-hidden min-h-[60vh]">
-            {/* Subtle Leafy Designs */}
             <div className="absolute top-0 left-0 opacity-5 pointer-events-none transform -translate-x-1/3 -translate-y-1/3">
               <Sprout className="w-96 h-96 text-[#4D7C0F]" />
             </div>
             <div className="absolute bottom-0 right-0 opacity-5 pointer-events-none transform translate-x-1/4 translate-y-1/4">
               <Sprout className="w-[30rem] h-[30rem] text-[#4D7C0F]" />
             </div>
-
             <div className="relative z-10 space-y-8">
-              {/* Search Bar only */}
               <div className="relative w-full max-w-xl mx-auto">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5B6D44] w-5 h-5" />
                 <input
                   type="text"
                   placeholder="Search history..."
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
                   className="w-full pl-12 pr-4 py-4 bg-white border border-[#E5EAD7] rounded-2xl focus:ring-2 focus:ring-[#4D7C0F] outline-none text-[#1A2E05] font-medium shadow-sm"
                 />
               </div>
 
-              {historyHarvests.length > 0 ? (
+              {filteredHistory.length > 0 ? (
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {historyHarvests.map(harvest => (
-                    <HarvestCard
-                      key={harvest.id}
-                      harvest={harvest}
-                      user={user}
-                      variant="grid"
-                    />
+                  {filteredHistory.map(harvest => (
+                    <HarvestCard key={harvest.id} harvest={harvest} user={user} variant="grid" />
                   ))}
                 </div>
               ) : (
@@ -751,10 +825,10 @@ export default function FarmerDashboard() {
 
         {/* Buyers View */}
         {activeView === 'buyers' && (
-          <InterestedBuyersView />
+          <InterestedBuyersView farmerId={user?.id ?? ''} />
         )}
 
-        {/* Account View (Editable) */}
+        {/* Account View */}
         {activeView === 'account' && (
           <div className="bg-white rounded-[32px] shadow-xl border border-[#E5EAD7] max-w-2xl mx-auto overflow-hidden">
             <div className="bg-[#4D7C0F] p-8 text-white flex items-center gap-4 relative overflow-hidden">
@@ -769,73 +843,49 @@ export default function FarmerDashboard() {
                 <p className="text-white/80">Farmer Account</p>
               </div>
             </div>
-
             <div className="p-8 space-y-6">
               <div className="bg-[#F7F9F2] p-6 rounded-2xl border border-[#E5EAD7]">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-bold text-[#1A2E05] text-lg">Personal Information</h3>
                   {!isEditingAccount && (
-                    <button 
-                      onClick={() => setIsEditingAccount(true)} 
-                      className="text-sm font-bold text-[#4D7C0F] hover:underline"
-                    >
-                      Edit
-                    </button>
+                    <button onClick={() => setIsEditingAccount(true)} className="text-sm font-bold text-[#4D7C0F] hover:underline">Edit</button>
                   )}
                 </div>
-                
+
                 {accountMessage && (
-                  <p className="text-green-600 text-sm font-bold mb-4 bg-green-50 p-2 rounded-lg text-center">
-                    {accountMessage}
-                  </p>
+                  <p className="text-green-600 text-sm font-bold mb-4 bg-green-50 p-2 rounded-lg text-center">{accountMessage}</p>
                 )}
 
                 {isEditingAccount ? (
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-[#5B6D44] uppercase mb-1">Full Name</label>
-                      <input 
-                        type="text" 
-                        value={accountForm.name} 
-                        onChange={(e) => setAccountForm({...accountForm, name: e.target.value})} 
-                        className="w-full p-3 bg-white rounded-xl border border-[#E5EAD7] outline-none focus:ring-2 focus:ring-[#4D7C0F]" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-[#5B6D44] uppercase mb-1">Location</label>
-                      <input 
-                        type="text" 
-                        value={accountForm.location} 
-                        onChange={(e) => setAccountForm({...accountForm, location: e.target.value})} 
-                        className="w-full p-3 bg-white rounded-xl border border-[#E5EAD7] outline-none focus:ring-2 focus:ring-[#4D7C0F]" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-[#5B6D44] uppercase mb-1">Phone Number</label>
-                      <input 
-                        type="text" 
-                        value={accountForm.phone} 
-                        onChange={(e) => setAccountForm({...accountForm, phone: e.target.value})} 
-                        className="w-full p-3 bg-white rounded-xl border border-[#E5EAD7] outline-none focus:ring-2 focus:ring-[#4D7C0F]" 
-                      />
-                    </div>
+                    {[
+                      { label: 'Full Name', key: 'name', type: 'text' },
+                      { label: 'Location', key: 'location', type: 'text' },
+                      { label: 'Phone Number', key: 'phone', type: 'text' },
+                    ].map(({ label, key, type }) => (
+                      <div key={key}>
+                        <label className="block text-xs font-bold text-[#5B6D44] uppercase mb-1">{label}</label>
+                        <input
+                          type={type}
+                          value={(accountForm as any)[key]}
+                          onChange={(e) => setAccountForm({ ...accountForm, [key]: e.target.value })}
+                          className="w-full p-3 bg-white rounded-xl border border-[#E5EAD7] outline-none focus:ring-2 focus:ring-[#4D7C0F]"
+                        />
+                      </div>
+                    ))}
                     <div className="flex gap-2 pt-2">
-                      <button 
-                        onClick={handleSaveAccount} 
-                        className="flex-1 py-3 bg-[#4D7C0F] text-white rounded-xl font-bold hover:bg-[#3F6212] transition-colors text-sm shadow-md"
-                      >
+                      <button onClick={handleSaveAccount} className="flex-1 py-3 bg-[#4D7C0F] text-white rounded-xl font-bold hover:bg-[#3F6212] transition-colors text-sm shadow-md">
                         Save Changes
                       </button>
-                      <button 
+                      <button
                         onClick={() => {
-                          // Reset form on cancel
                           setAccountForm({
-                            name: profile?.full_name || user?.user_metadata?.full_name || user?.full_name || 'Farmer',
+                            name: profile?.full_name || user?.user_metadata?.full_name || 'Farmer',
                             location: profile?.location || profile?.province || user?.user_metadata?.location || 'Bukidnon',
                             phone: profile?.phone || user?.phone || ''
-                          });
-                          setIsEditingAccount(false);
-                        }} 
+                          })
+                          setIsEditingAccount(false)
+                        }}
                         className="flex-1 py-3 bg-white text-[#5B6D44] border border-[#E5EAD7] rounded-xl font-bold hover:bg-[#F1F4E8] transition-colors text-sm"
                       >
                         Cancel
@@ -860,6 +910,7 @@ export default function FarmerDashboard() {
             </div>
           </div>
         )}
+
       </div>
     </div>
   )

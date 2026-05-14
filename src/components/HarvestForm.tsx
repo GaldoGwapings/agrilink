@@ -52,16 +52,25 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
 
   useEffect(() => {
     if (initialData) {
+      // Format the date for the input field (YYYY-MM-DD)
+      let formattedDate = initialData.harvestDate || ''
+      if (formattedDate && formattedDate.includes('/')) {
+        const parts = formattedDate.split('/')
+        if (parts.length === 3) {
+          formattedDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`
+        }
+      }
+      
       setFormData({
-        cropType: initialData.cropType || '',
+        cropType: initialData.cropType || initialData.crop_type || '',
         category: initialData.category || 'Vegetables',
         quantity: initialData.quantity?.toString() || '',
         unit: initialData.unit || 'kg',
-        price: initialData.price?.toString() || '',
+        price: (initialData.price_per_unit || initialData.price || '').toString(),
         province: initialData.province || '',
         municipality: initialData.municipality || '',
         barangay: initialData.barangay || '',
-        harvestDate: initialData.harvestDate || '',
+        harvestDate: formattedDate,
         description: initialData.description || '',
         image: null
       })
@@ -114,6 +123,16 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
     try {
       const parsed = await parseHarvestDescription(aiDescription)
       if (parsed.cropName) {
+        // Format the date from AI (assuming it might come in various formats)
+        let formattedDate = parsed.targetDate || ''
+        if (formattedDate && !formattedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          // Try to parse and format the date
+          const dateObj = new Date(formattedDate)
+          if (!isNaN(dateObj.getTime())) {
+            formattedDate = dateObj.toISOString().split('T')[0]
+          }
+        }
+        
         setFormData(prev => ({
           ...prev,
           cropType: parsed.cropName,
@@ -124,7 +143,7 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
           province: parsed.province,
           municipality: parsed.municipality || '',
           barangay: parsed.barangay || '',
-          harvestDate: parsed.targetDate
+          harvestDate: formattedDate
         }))
         setAiDescription('')
       }
@@ -138,12 +157,38 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    
+    // Format the date to YYYY-MM-DD for Supabase
+    let formattedDate = formData.harvestDate
+    if (formattedDate && !formattedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const dateObj = new Date(formattedDate)
+      if (!isNaN(dateObj.getTime())) {
+        formattedDate = dateObj.toISOString().split('T')[0]
+      }
+    }
+    
+    // Ensure we have a valid date
+    if (!formattedDate) {
+      formattedDate = new Date().toISOString().split('T')[0]
+    }
+    
     onSuccess({
-      ...formData,
+      cropType: formData.cropType,
+      category: formData.category,
       quantity: parseFloat(formData.quantity) || 0,
-      price: parseFloat(formData.price) || 0
+      unit: formData.unit,
+      pricePerUnit: parseFloat(formData.price) || 0, // Map to pricePerUnit for database
+      province: formData.province,
+      municipality: formData.municipality,
+      barangay: formData.barangay,
+      harvestDate: formattedDate, // Send formatted date
+      description: formData.description,
+      image: formData.image,
+      status: 'active'
     })
+    
     setLoading(false)
+    
     if (!isEdit) {
       setFormData({
         cropType: '',
@@ -277,6 +322,7 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
           </label>
           <input
             type="number"
+            step="0.01"
             value={formData.price}
             onChange={(e) => setFormData({ ...formData, price: e.target.value })}
             className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"

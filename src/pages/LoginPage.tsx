@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sprout, ShoppingBag, ArrowRight, ChevronLeft, Smartphone, CheckCircle, Loader2 } from "lucide-react";
+import { Sprout, ShoppingBag, ArrowRight, ChevronLeft, Mail, Lock, Eye, EyeOff, CheckCircle, Loader2 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
@@ -10,10 +10,12 @@ export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [role, setRole] = useState<'farmer' | 'buyer'>('farmer');
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [location, setLocation] = useState("");
-  const [otp, setOtp] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<'error' | 'success'>('error');
@@ -31,103 +33,85 @@ export default function LoginPage() {
     checkSession();
   }, [navigate]);
 
-  const normalizePhone = (value: string) => {
-    const digits = value.replace(/\D/g, '');
-    if (digits.startsWith('63')) return `+${digits}`;
-    if (digits.startsWith('0')) return `+63${digits.slice(1)}`;
-    if (digits.startsWith('9')) return `+63${digits}`;
-    return `+${digits}`;
-  };
-
   const showMessage = (text: string, type: 'error' | 'success') => {
     setMessage(text);
     setMessageType(type);
-    setTimeout(() => setMessage(''), 5000);
+    setTimeout(() => setMessage(''), 6000);
   };
 
-  // Resets the OTP and message states when switching between Farmer and Buyer
   const handleRoleSwitch = (newRole: 'farmer' | 'buyer') => {
     setRole(newRole);
-    setOtpSent(false);
-    setOtp("");
     setMessage("");
   };
 
-  const handleSendOtp = async () => {
-    // Form validation
-    if (!isLogin) {
-      if (!fullName.trim() || !location.trim() || !phone.trim()) {
-        showMessage('Please fill in all required fields.', 'error');
-        return;
-      }
-      if (!agreeTerms) {
-        showMessage('Please agree to the Terms & Conditions.', 'error');
-        return;
-      }
-    } else {
-      if (!phone.trim()) {
-        showMessage('Please enter your phone number.', 'error');
-        return;
-      }
-    }
-    
-    setLoading(true);
-    const cleanPhone = normalizePhone(phone);
-    setPhone(cleanPhone);
+  const handleSubmit = async () => {
+    setMessage('');
 
-    if (cleanPhone === '+639488297163') {
-      setOtpSent(true);
-      showMessage('OTP sent! Enter the code.', 'success');
+    // ── SIGN IN ──
+    if (isLogin) {
+      if (!email.trim() || !password.trim()) {
+        showMessage('Please enter your email and password.', 'error');
+        return;
+      }
+      setLoading(true);
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        showMessage(error.message, 'error');
+      } else if (data.user && !data.user.email_confirmed_at) {
+  showMessage('Please verify your email before logging in. Check your inbox.', 'error');
+  await supabase.auth.signOut();
+} else if (data.session) {
+  showMessage('Login successful! Redirecting...', 'success');
+  setRedirecting(true);
+  setTimeout(() => {
+    const userRole = data.session?.user?.user_metadata?.role || role;
+    navigate(userRole === 'buyer' ? '/buyer' : '/farmer');
+  }, 1500);
+}
       setLoading(false);
       return;
     }
 
-    const { error } = await supabase.auth.signInWithOtp({
-      phone: cleanPhone,
-      options: { shouldCreateUser: !isLogin, data: { full_name: fullName, role, location } },
+    // ── SIGN UP ──
+    if (!fullName.trim() || !location.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
+      showMessage('Please fill in all required fields.', 'error');
+      return;
+    }
+    if (password !== confirmPassword) {
+      showMessage('Passwords do not match.', 'error');
+      return;
+    }
+    if (password.length < 6) {
+      showMessage('Password must be at least 6 characters.', 'error');
+      return;
+    }
+    if (!agreeTerms) {
+      showMessage('Please agree to the Terms & Conditions.', 'error');
+      return;
+    }
+
+    setLoading(true);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: fullName, role, location },
+      },
     });
 
-    if (error) { showMessage(error.message, 'error'); }
-    else { setOtpSent(true); showMessage('OTP sent! Enter the code.', 'success'); }
-    setLoading(false);
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!otp) { showMessage('Please enter the verification code.', 'error'); return; }
-    setLoading(true);
-    const cleanPhone = normalizePhone(phone);
-
-    if (cleanPhone === '+639488297163' && otp === '696969') {
-      const demoUser = {
-        id: `demo_${Date.now()}`,
-        phone: cleanPhone,
-        user_metadata: { full_name: fullName || 'Demo Farmer', role, location: location || 'Bukidnon' }
-      };
-      localStorage.setItem('agrilink_user', JSON.stringify(demoUser));
-      localStorage.setItem('agrilink_auth', 'demo_mode');
-      showMessage('Login successful! Redirecting...', 'success');
+    if (error) {
+      showMessage(error.message, 'error');
+    } else if (data.session) {
+      showMessage('Account created! Redirecting...', 'success');
       setRedirecting(true);
       setTimeout(() => navigate(role === 'buyer' ? '/buyer' : '/farmer'), 1500);
-      setLoading(false);
-      return;
-    }
-
-    const { data, error } = await supabase.auth.verifyOtp({ phone: cleanPhone, token: otp, type: 'sms' });
-    if (error) { showMessage(error.message, 'error'); setLoading(false); return; }
-    if (data.session) {
-      showMessage('Phone verified! Redirecting...', 'success');
-      setRedirecting(true);
-      setTimeout(() => {
-        const userRole = data.session?.user?.user_metadata?.role || role;
-        navigate(userRole === 'buyer' ? '/buyer' : '/farmer');
-      }, 1500);
+    } else {
+      showMessage(
+        '✅ Registration successful! Please check your email and click the confirmation link before logging in.',
+        'success'
+      );
     }
     setLoading(false);
-  };
-
-  const handleSubmit = async () => {
-    if (otpSent) await handleVerifyOtp();
-    else await handleSendOtp();
   };
 
   if (redirecting) {
@@ -150,15 +134,14 @@ export default function LoginPage() {
         className="w-full max-w-5xl bg-white rounded-[40px] shadow-2xl border border-[#E5EAD7] overflow-hidden grid lg:grid-cols-2 min-h-[640px]"
       >
         {/* ── LEFT PANEL ── */}
-        <motion.div 
+        <motion.div
           layout
           className={cn(
             "p-12 text-white flex flex-col justify-between relative overflow-hidden h-full transition-colors duration-500",
-            isLogin ? "bg-[#4D7C0F]" : "bg-[#3F6212]", // Panel changes color dynamically
+            isLogin ? "bg-[#4D7C0F]" : "bg-[#3F6212]",
             role === 'buyer' ? 'lg:order-2' : 'lg:order-1'
           )}
         >
-          {/* TOP: back + logo + heading + subtext */}
           <div className="space-y-6 relative z-10 text-left">
             <div className={cn("flex w-full transition-all duration-300", role === 'buyer' ? "justify-end" : "justify-start")}>
               <button
@@ -186,24 +169,21 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* BOTTOM: decorative leaf icon */}
           <div className="relative z-10 flex justify-end mt-8">
             <Sprout className="w-28 h-28 text-white/20" />
           </div>
         </motion.div>
 
         {/* ── RIGHT PANEL ── */}
-        <motion.div 
+        <motion.div
           layout
           className={cn(
             "p-12 flex flex-col justify-center items-center h-full",
             role === 'buyer' ? 'lg:order-1' : 'lg:order-2'
           )}
         >
-          {/* Wrapper to enforce perfect alignment bounds */}
           <div className="w-full max-w-[400px] flex flex-col">
-            
-            {/* Heading text */}
+
             <div className="text-left mb-3">
               <h1 className="text-3xl font-black text-[#1A2E05]">
                 {isLogin ? 'Welcome Back!' : 'Create Account'}
@@ -241,73 +221,123 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/* Input fields and Submit button block */}
-            <div className="space-y-6 w-full mb-6">
-              {!isLogin && (
-                <div className="space-y-2 text-left">
-                  <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">
-                    Full Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Juan Dela Cruz"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 px-4 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all"
-                  />
-                </div>
-              )}
-
-              {!isLogin && (
-                <div className="space-y-2 text-left">
-                  <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">
-                    Location <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Bukidnon, Nueva Ecija"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 px-4 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all"
-                  />
-                </div>
-              )}
-
-              <div className="space-y-2 text-left">
-                <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">
-                  Phone Number {!isLogin && <span className="text-red-500">*</span>}
-                </label>
-                <div className="relative">
-                  <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5B6D44] w-5 h-5" />
-                  <input
-                    type="tel"
-                    placeholder="09488297163"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all"
-                    required
-                    disabled={otpSent}
-                  />
-                </div>
-              </div>
+            {/* Fields */}
+            <div className="space-y-4 w-full mb-6">
 
               <AnimatePresence>
-                {otpSent && (
+                {!isLogin && (
                   <motion.div
                     className="space-y-2 text-left"
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                   >
-                    <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">OTP Code</label>
+                    <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">
+                      Full Name <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="text"
-                      placeholder="Enter 6-digit code"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                      className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 px-4 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all text-center text-2xl tracking-widest font-mono"
-                      maxLength={6}
+                      placeholder="Juan Dela Cruz"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 px-4 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all"
                     />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <AnimatePresence>
+                {!isLogin && (
+                  <motion.div
+                    className="space-y-2 text-left"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                  >
+                    <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">
+                      Location <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Bukidnon, Nueva Ecija"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 px-4 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all"
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Email */}
+              <div className="space-y-2 text-left">
+                <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5B6D44] w-5 h-5" />
+                  <input
+                    type="email"
+                    placeholder="juan@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div className="space-y-2 text-left">
+                <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">
+                  Password <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5B6D44] w-5 h-5" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 pl-12 pr-12 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5B6D44] hover:text-[#1A2E05] transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password — sign up only */}
+              <AnimatePresence>
+                {!isLogin && (
+                  <motion.div
+                    className="space-y-2 text-left"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                  >
+                    <label className="text-xs font-bold uppercase tracking-widest text-[#5B6D44] block">
+                      Confirm Password <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5B6D44] w-5 h-5" />
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full bg-[#FDFCF8] border border-[#E5EAD7] rounded-2xl py-4 pl-12 pr-12 focus:ring-2 focus:ring-[#4D7C0F] outline-none transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-[#5B6D44] hover:text-[#1A2E05] transition-colors"
+                      >
+                        {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -321,7 +351,6 @@ export default function LoginPage() {
                 </p>
               )}
 
-              {/* Terms and Conditions */}
               {!isLogin && (
                 <div className="flex items-start gap-2 text-left w-full px-1">
                   <input
@@ -332,7 +361,10 @@ export default function LoginPage() {
                     className={cn("mt-0.5 w-4 h-4 cursor-pointer rounded transition-colors", isLogin ? "accent-[#4D7C0F]" : "accent-[#3F6212]")}
                   />
                   <label htmlFor="terms" className="text-xs text-[#5B6D44] cursor-pointer select-none leading-tight">
-                    By creating an account, I agree to the <span className={cn("font-bold hover:underline transition-colors", isLogin ? "text-[#4D7C0F]" : "text-[#3F6212]")}>Terms & Conditions</span>.
+                    By creating an account, I agree to the{' '}
+                    <span className={cn("font-bold hover:underline transition-colors", isLogin ? "text-[#4D7C0F]" : "text-[#3F6212]")}>
+                      Terms & Conditions
+                    </span>.
                   </label>
                 </div>
               )}
@@ -350,33 +382,29 @@ export default function LoginPage() {
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    {otpSent ? 'Verify OTP' : (isLogin ? 'Send OTP' : 'Register & Send OTP')}
+                    {isLogin ? 'Sign In' : 'Create Account'}
                     <ArrowRight className="w-5 h-5" />
                   </>
                 )}
               </button>
             </div>
 
-            {/* Switch Mode Link */}
-            <div className="w-full flex flex-col space-y-4">
-              <div className="text-center w-full">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsLogin(!isLogin);
-                    setOtpSent(false);
-                    setOtp('');
-                    setMessage('');
-                    setPhone('');
-                    setAgreeTerms(false);
-                  }}
-                  className={cn("text-sm font-bold hover:underline transition-colors duration-500", isLogin ? "text-[#4D7C0F]" : "text-[#3F6212]")}
-                >
-                  {isLogin 
-                    ? "No account? Register" 
-                    : "Already have an account? Login"}
-                </button>
-              </div>
+            <div className="w-full text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setMessage('');
+                  setPassword('');
+                  setConfirmPassword('');
+                  setAgreeTerms(false);
+                  setShowPassword(false);
+                  setShowConfirmPassword(false);
+                }}
+                className={cn("text-sm font-bold hover:underline transition-colors duration-500", isLogin ? "text-[#4D7C0F]" : "text-[#3F6212]")}
+              >
+                {isLogin ? "No account? Register" : "Already have an account? Login"}
+              </button>
             </div>
 
           </div>
