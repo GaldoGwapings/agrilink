@@ -1,6 +1,5 @@
 import { cn } from '../lib/utils'
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Calendar, MapPin, Package, Clock, Phone, User as UserIcon, ArrowLeft, Users, Sprout } from "lucide-react";
+import { X, MapPin, Package, ArrowLeft, Users, Sprout } from "lucide-react";
 import type { Harvest } from "../types"
 
 interface ProductDetailsModalProps {
@@ -75,7 +74,7 @@ export default function ProductDetailsModal({ harvest, onClose }: ProductDetails
             <div className="flex items-center justify-between items-start">
               <div className="space-y-0.5">
                 <p className="text-[9px] font-black text-[#5B6D44] uppercase tracking-wider">Estimated Price</p>
-                <p className="text-2xl font-black text-[#1A2E05]">₱{harvest.price_per_unit.toLocaleString()}<span className="text-[10px] font-bold text-[#5B6D44] ml-0.5">/{harvest.unit}</span></p>
+                <p className="text-2xl font-black text-[#1A2E05]">₱{harvest.price_per_unit?.toLocaleString() ?? '0'}<span className="text-[10px] font-bold text-[#5B6D44] ml-0.5">/{harvest.unit}</span></p>
               </div>
               <div className={cn(
                 "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest",
@@ -109,8 +108,8 @@ export default function ProductDetailsModal({ harvest, onClose }: ProductDetails
             <div className="p-4 bg-[#FDFCF8] rounded-2xl border border-[#E5EAD7] space-y-1.5">
               <p className="text-[9px] font-black text-[#4D7C0F] uppercase tracking-wider">Description</p>
               <p className="text-[11px] text-[#5B6D44] leading-relaxed">
-                Freshly harvested {harvest.crop_type} from {harvest.province}. High quality.
-              </p>
+  {harvest.description || `Freshly harvested ${harvest.crop_type} from ${harvest.province}. High quality.`}
+</p>
             </div>
 
             <div className="p-4 bg-[#ECFCCB]/30 rounded-2xl border border-[#ECFCCB] space-y-2">

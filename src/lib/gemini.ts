@@ -8,6 +8,7 @@ export interface ParsedHarvestData {
   unit: string
   price: number
   province: string
+  municipality: string
   barangay: string
   targetDate: string
   description: string
@@ -81,6 +82,7 @@ Return this exact JSON format:
       price: parsed.price || 0,
       province: parsed.province || '',
       barangay: parsed.barangay || '',
+      municipality: parsed.municipality || '',
       targetDate: parsed.targetDate || '',
       description: description,
       confidence: parsed.confidence || 0.5
@@ -209,7 +211,7 @@ Respond helpfully about harvest registration, finding buyers, market prices, and
 function getFallbackParsedData(description: string): ParsedHarvestData {
   return {
     cropName: '', category: 'Vegetables', quantity: 0,
-    unit: 'kg', price: 0, province: '', barangay: '',
+    unit: 'kg', price: 0, province: '', barangay: '', municipality:'',
     targetDate: '', description: description, confidence: 0
   }
 }
