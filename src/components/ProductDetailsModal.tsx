@@ -1,3 +1,4 @@
+import { cn } from '../lib/utils'
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Calendar, MapPin, Package, Clock, Phone, User as UserIcon, ArrowLeft, Users, Sprout } from "lucide-react";
 import type { Harvest } from "../types"
@@ -45,10 +46,10 @@ export default function ProductDetailsModal({ harvest, onClose }: ProductDetails
 
           {/* Image Section */}
           <div className="h-48 md:h-56 relative shrink-0">
-            {harvest.imageUrl ? (
+            {harvest.image_url ? (
               <img 
-                src={harvest.imageUrl} 
-                alt={harvest.cropType}
+                src={harvest.image_url} 
+                alt={harvest.crop_type}
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
@@ -65,7 +66,7 @@ export default function ProductDetailsModal({ harvest, onClose }: ProductDetails
               <span className="text-white/80 font-black uppercase tracking-widest text-[9px] bg-white/20 backdrop-blur-md px-2 py-1 rounded-lg">
                 {harvest.category}
               </span>
-              <h2 className="text-2xl font-black text-white leading-tight">{harvest.cropType}</h2>
+              <h2 className="text-2xl font-black text-white leading-tight">{harvest.crop_type}</h2>
             </div>
           </div>
 
@@ -74,7 +75,7 @@ export default function ProductDetailsModal({ harvest, onClose }: ProductDetails
             <div className="flex items-center justify-between items-start">
               <div className="space-y-0.5">
                 <p className="text-[9px] font-black text-[#5B6D44] uppercase tracking-wider">Estimated Price</p>
-                <p className="text-2xl font-black text-[#1A2E05]">₱{harvest.pricePerUnit.toLocaleString()}<span className="text-[10px] font-bold text-[#5B6D44] ml-0.5">/{harvest.unit}</span></p>
+                <p className="text-2xl font-black text-[#1A2E05]">₱{harvest.price_per_unit.toLocaleString()}<span className="text-[10px] font-bold text-[#5B6D44] ml-0.5">/{harvest.unit}</span></p>
               </div>
               <div className={cn(
                 "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest",
@@ -108,7 +109,7 @@ export default function ProductDetailsModal({ harvest, onClose }: ProductDetails
             <div className="p-4 bg-[#FDFCF8] rounded-2xl border border-[#E5EAD7] space-y-1.5">
               <p className="text-[9px] font-black text-[#4D7C0F] uppercase tracking-wider">Description</p>
               <p className="text-[11px] text-[#5B6D44] leading-relaxed">
-                Freshly harvested {harvest.cropType} from {harvest.province}. High quality.
+                Freshly harvested {harvest.crop_type} from {harvest.province}. High quality.
               </p>
             </div>
 
