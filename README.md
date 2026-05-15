@@ -1,73 +1,87 @@
-# React + TypeScript + Vite
+# AgriLink
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+AgriLink is a web-based agricultural marketplace platform designed to connect Filipino farmers and buyers in Mindanao. The system enables farmers to list upcoming harvests in advance, while buyers can browse, filter, and express interest in available crops. An AI-powered assistant named Ani helps buyers find products using natural conversation in Taglish (Tagalog-English).
 
-Currently, two official plugins are available:
+## Live Demo
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+https://agrilink-gold.vercel.app
 
-## React Compiler
+## Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Farmer dashboard for listing and managing upcoming harvests
+- Buyer marketplace with search and filter by crop category and province
+- Interactive harvest map powered by Leaflet showing harvest locations across Mindanao
+- AI chat assistant (Ani) powered by Groq LLaMA 3.3 for crop recommendations
+- Real-time notifications when buyers express interest in a listing
+- User authentication and profile management via Supabase
+- Account deletion for both farmer and buyer accounts
 
-## Expanding the ESLint configuration
+## Tech Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+| React + TypeScript (Vite) | Frontend framework |
+| Tailwind CSS | Styling and layout |
+| Supabase | Database, authentication, and real-time backend |
+| Groq API (LLaMA 3.3) | AI assistant (Ani) |
+| React Leaflet | Interactive harvest map |
+| Framer Motion | UI animations and transitions |
+| Vercel | Deployment and hosting |
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Prerequisites
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- Node.js v18 or higher
+- npm v9 or higher
+- A Supabase project
+- A Groq API key
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Setup and Installation
+
+1. Clone the repository
+
+```bash
+   git clone https://github.com/GaldoGwapings/agrilink
+   cd agrilink
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+2. Install dependencies
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+   npm install
 ```
+
+3. Create a `.env` file in the project root with the following variables
+
+```env
+   VITE_SUPABASE_URL=supabase_project_url
+   VITE_SUPABASE_ANON_KEY=supabase_anon_key
+   VITE_GROQ_API_KEY=groq_api_key
+```
+
+4. Start the development server
+
+```bash
+   npm run dev
+```
+
+5. Open your browser and navigate to `http://localhost:5173`
+
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| VITE_SUPABASE_URL | Supabase project URL |
+| VITE_SUPABASE_ANON_KEY | Supabase anonymous public key |
+| VITE_GROQ_API_KEY | Groq API key for the AI assistant |
+
+
+## Deployment
+
+This project is deployed on Vercel. To deploy your own instance:
+
+1. Push your repository to GitHub
+2. Import the project in the Vercel dashboard
+3. Add the environment variables under Project Settings → Environment Variables
+4. Deploy
+
+## License
+
+This project was developed as an academic requirement. All rights reserved.
