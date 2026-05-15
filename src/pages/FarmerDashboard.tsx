@@ -2,17 +2,25 @@ import { useState, useEffect, useRef } from 'react'
 import type { Harvest } from '../types'
 import HarvestCard from '../components/HarvestCard'
 import HarvestForm from '../components/HarvestForm'
-import { Plus, LayoutGrid, List, Sprout, Sparkles, X, LogOut, Menu, Bell, User as UserIcon, Users, History, Search } from 'lucide-react'
+import { Plus, LayoutGrid, List, Sprout, Sparkles, X, LogOut, Menu, Bell, User as UserIcon, Users, History, Search, CheckCircle2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '../lib/utils'
 import { supabase } from '../lib/supabase'
 import { getSmartListingRecommendations } from '../lib/gemini'
+
+const VIEW_LABELS: Record<string, string> = {
+  dashboard: 'My Harvest Dashboard',
+  history: 'History Dashboard',
+  buyers: 'Interested Buyers',
+  account: 'My Account',
+}
 
 // ── INTERESTED BUYERS VIEW ──
 const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
   const [filter, setFilter] = useState<'new' | 'completed' | 'all'>('new')
   const [buyers, setBuyers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [confirming, setConfirming] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchBuyers = async () => {
@@ -35,6 +43,42 @@ const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
       .eq('id', id)
     if (!error) {
       setBuyers(prev => prev.map(b => b.id === id ? { ...b, status: 'completed' } : b))
+    }
+  }
+
+  // Confirm Order: mark completed + send real-time notification to buyer
+  const handleConfirmOrder = async (buyer: any) => {
+    setConfirming(buyer.id)
+    try {
+      // 1. Mark as completed in buyer_interests
+      await supabase
+        .from('buyer_interests')
+        .update({ status: 'completed' })
+        .eq('id', buyer.id)
+
+      // 2. Insert a real-time notification for the buyer
+      const { error: notifError } = await supabase
+        .from('buyer_notifications')
+        .insert({
+          buyer_id: buyer.buyer_id,
+          farmer_id: farmerId,
+          harvest_id: buyer.harvest_id,
+          message: 'Your order has been confirmed by the farmer.',
+          type: 'order_confirmed',
+          is_read: false,
+          product: buyer.product,
+          farmer_name: buyer.farmer_name || null,
+          confirmed_at: new Date().toISOString(),
+        })
+
+      if (notifError) console.error('Notification error:', notifError)
+
+      // 3. Update UI
+      setBuyers(prev => prev.map(b => b.id === buyer.id ? { ...b, status: 'completed' } : b))
+    } catch (err) {
+      console.error('Confirm order error:', err)
+    } finally {
+      setConfirming(null)
     }
   }
 
@@ -67,7 +111,7 @@ const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
       ) : filtered.length > 0 ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map(buyer => (
-            <div key={buyer.id} className="group bg-white rounded-[32px] border border-[#E5EAD7] p-6 hover:shadow-xl transition-all relative overflow-hidden flex flex-col h-full">
+            <div key={buyer.id} className="group bg-white rounded-[32px] border border-[#E5EAD7] p-6 hover:shadow-xl transition-all flex flex-col h-full">
               <div className="flex justify-between items-start mb-4">
                 <span className="font-black text-xl text-[#1A2E05]">{buyer.contact_number}</span>
                 <span className={cn(
@@ -79,16 +123,30 @@ const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
               </div>
               <div className="flex-1 space-y-3">
                 <p className="text-sm text-[#5B6D44]"><strong>Product:</strong> {buyer.product}</p>
-                <p className="text-sm text-[#5B6D44]"><strong>Date Ordered:</strong> {new Date(buyer.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                <p className="text-sm text-[#5B6D44]"><strong>Date:</strong> {new Date(buyer.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                 <p className="text-sm text-[#5B6D44]"><strong>Location:</strong> {buyer.location}</p>
               </div>
               {buyer.status === 'new' && (
-                <div className="pt-4 mt-6 border-t border-[#F1F4E8]">
+                <div className="pt-4 mt-4 border-t border-[#F1F4E8] space-y-2">
+                  {/* Confirm Order — sends real-time notification to buyer */}
+                  <button
+                    onClick={() => handleConfirmOrder(buyer)}
+                    disabled={confirming === buyer.id}
+                    className="w-full py-3 bg-[#4D7C0F] text-white text-sm font-bold rounded-2xl hover:bg-[#3F6212] transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {confirming === buyer.id ? (
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4" />
+                    )}
+                    Confirm Order
+                  </button>
+                  {/* Mark completed without notifying */}
                   <button
                     onClick={() => markCompleted(buyer.id)}
-                    className="w-full py-3 bg-white border border-[#4D7C0F] text-[#4D7C0F] text-sm font-bold rounded-2xl hover:bg-[#F1F4E8] transition-colors"
+                    className="w-full py-2.5 bg-white border border-[#4D7C0F] text-[#4D7C0F] text-sm font-bold rounded-2xl hover:bg-[#F1F4E8] transition-colors"
                   >
-                    Mark as completed
+                    Mark as Completed
                   </button>
                 </div>
               )}
@@ -283,29 +341,54 @@ export default function FarmerDashboard() {
   }, [user])
 
   // ── CRUD handlers ──
-const handleAddHarvest = async (newHarvest: any) => {
-  if (!user?.id) return
+  const handleAddHarvest = async (newHarvest: any) => {
+    if (!user?.id) return
 
-  let image_url = null
-  if (newHarvest.image instanceof File) {
-    const file = newHarvest.image
-    const ext = file.name.split('.').pop()
-    const path = `harvests/${user.id}/${Date.now()}.${ext}`
-    const { error: uploadError } = await supabase.storage
-      .from('harvest-images')
-      .upload(path, file, { upsert: true })
-    if (!uploadError) {
-      const { data: urlData } = supabase.storage
+    let image_url = null
+    if (newHarvest.image instanceof File) {
+      const file = newHarvest.image
+      const ext = file.name.split('.').pop()
+      const path = `harvests/${user.id}/${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage
         .from('harvest-images')
-        .getPublicUrl(path)
-      image_url = urlData.publicUrl
+        .upload(path, file, { upsert: true })
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage
+          .from('harvest-images')
+          .getPublicUrl(path)
+        image_url = urlData.publicUrl
+      }
     }
-  }
 
-  if (editingHarvest) {
-    const { data, error } = await supabase
-      .from('harvests')
-      .update({
+    if (editingHarvest) {
+      const { data, error } = await supabase
+        .from('harvests')
+        .update({
+          crop_type: newHarvest.crop_type,
+          category: newHarvest.category,
+          quantity: newHarvest.quantity,
+          unit: newHarvest.unit,
+          harvest_date: newHarvest.harvest_date,
+          province: newHarvest.province,
+          municipality: newHarvest.municipality,
+          barangay: newHarvest.barangay,
+          price_per_unit: newHarvest.price_per_unit,
+          description: newHarvest.description,
+          status: newHarvest.status,
+          ...(image_url && { image_url }),
+        })
+        .eq('id', editingHarvest.id)
+        .select()
+        .single()
+      if (!error && data) {
+        setHarvests(prev => prev.map(h => h.id === editingHarvest.id ? data as Harvest : h))
+      }
+      setEditingHarvest(null)
+      setShowAddForm(false)
+
+    } else {
+      const insertData = {
+        farmer_id: user.id,
         crop_type: newHarvest.crop_type,
         category: newHarvest.category,
         quantity: newHarvest.quantity,
@@ -314,52 +397,27 @@ const handleAddHarvest = async (newHarvest: any) => {
         province: newHarvest.province,
         municipality: newHarvest.municipality,
         barangay: newHarvest.barangay,
-        price_per_unit: newHarvest.price_per_unit,
-        description: newHarvest.description,
-        status: newHarvest.status,
-        ...(image_url && { image_url }),
-      })
-      .eq('id', editingHarvest.id)
-      .select()
-      .single()
-    if (!error && data) {
-      setHarvests(prev => prev.map(h => h.id === editingHarvest.id ? data as Harvest : h))
-    }
-    setEditingHarvest(null)
-    setShowAddForm(false)
+        price_per_unit: newHarvest.price_per_unit || 0,
+        description: newHarvest.description || '',
+        status: newHarvest.status || 'active',
+        image_url: image_url,
+        lat: 8.2917,
+        lng: 124.9667,
+      }
 
-  } else {
-    const insertData = {
-      farmer_id: user.id,
-      crop_type: newHarvest.crop_type,
-      category: newHarvest.category,
-      quantity: newHarvest.quantity,
-      unit: newHarvest.unit,
-      harvest_date: newHarvest.harvest_date,
-      province: newHarvest.province,
-      municipality: newHarvest.municipality,
-      barangay: newHarvest.barangay,
-      price_per_unit: newHarvest.price_per_unit || 0,
-      description: newHarvest.description || '',
-      status: newHarvest.status || 'active',
-      image_url: image_url,
-      lat: 8.2917,
-      lng: 124.9667,
-    }
+      const { error } = await supabase
+        .from('harvests')
+        .insert([insertData])
 
-    const { error } = await supabase
-      .from('harvests')
-      .insert([insertData])
-
-    if (error) {
-      console.error('Insert failed:', error.message, error.code, error.hint)
-      alert('Failed to add harvest: ' + error.message)
-    } else {
-      await fetchHarvests(user.id)
+      if (error) {
+        console.error('Insert failed:', error.message, error.code, error.hint)
+        alert('Failed to add harvest: ' + error.message)
+      } else {
+        await fetchHarvests(user.id)
+      }
+      setShowAddForm(false)
     }
-    setShowAddForm(false)
   }
-}
 
   const handleDeleteHarvest = async (id: string) => {
     const { error } = await supabase
@@ -537,12 +595,15 @@ const handleAddHarvest = async (newHarvest: any) => {
             <button onClick={() => setIsSidebarOpen(true)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <Menu className="w-6 h-6 text-[#1A2E05]" />
             </button>
-            <div className="hidden sm:flex items-center gap-2">
+            <button 
+              onClick={() => setActiveView('dashboard')} 
+              className="hidden sm:flex items-center gap-2 hover:opacity-80 transition-opacity text-left"
+            >
               <div className="bg-[#4D7C0F] p-1.5 rounded-lg">
                 <Sprout className="text-white w-5 h-5" />
               </div>
               <span className="font-black text-[#1A2E05] text-xl">AgriLink</span>
-            </div>
+            </button>
           </div>
 
           <div className="flex items-center gap-4 mr-13">
@@ -582,6 +643,10 @@ const handleAddHarvest = async (newHarvest: any) => {
                       {notifications.length > 0 ? notifications.map((n) => (
                         <div
                           key={n.id}
+                          onClick={() => {
+                            setActiveView('buyers');
+                            setShowNotificationMenu(false);
+                          }}
                           className={cn(
                             "p-4 transition-colors cursor-pointer flex gap-3 items-start border-b border-gray-50 last:border-0",
                             !n.is_read ? "bg-white hover:bg-gray-50" : "bg-gray-50 opacity-70"
@@ -590,7 +655,6 @@ const handleAddHarvest = async (newHarvest: any) => {
                           <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
                             <Users className="w-4 h-4 text-green-700" />
                           </div>
-                          {/* ── Buyer name from DB, not hardcoded ── */}
                           <div className="flex flex-col gap-0.5">
                             <p className="text-[#1A2E05] text-sm font-bold">{n.buyer_name}</p>
                             <p className="text-[#5B6D44] text-sm leading-snug">
@@ -732,6 +796,7 @@ const handleAddHarvest = async (newHarvest: any) => {
                 <Sprout className="w-64 h-64" />
               </div>
               <div className="space-y-2 relative z-10">
+                <p className="text-xs font-bold text-[#ECFCCB] uppercase tracking-widest mb-1">Marketplace</p>
                 <h1 className="text-4xl md:text-5xl font-black text-white flex items-center gap-3">
                   Welcome back!
                 </h1>
