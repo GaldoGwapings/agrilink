@@ -181,21 +181,41 @@ export default function BuyerDashboard() {
     window.location.href = '/'
   }
 
-  const handleSaveAccount = () => {
-    const updatedProfile = { ...profile, full_name: accountForm.name, location: accountForm.location, phone: accountForm.phone }
-    setProfile(updatedProfile)
-    
-    const demoUserStr = localStorage.getItem('agrilink_user')
-    if (demoUserStr) {
-      const demoUser = JSON.parse(demoUserStr)
-      demoUser.user_metadata = updatedProfile
-      localStorage.setItem('agrilink_user', JSON.stringify(demoUser))
-    }
-    
-    setIsEditingAccount(false)
-    setAccountMessage('Changes saved successfully!')
-    setTimeout(() => setAccountMessage(''), 3000)
+  const handleSaveAccount = async () => {
+  const updatedProfile = { 
+    ...profile, 
+    full_name: accountForm.name, 
+    location: accountForm.location, 
+    phone: accountForm.phone 
   }
+  setProfile(updatedProfile)
+
+  // Save to Supabase auth metadata
+  await supabase.auth.updateUser({ data: updatedProfile })
+
+  // Save to profiles table
+  if (user?.id) {
+    await supabase
+      .from('profiles')
+      .update({ 
+        full_name: accountForm.name,
+        location: accountForm.location,
+        phone: accountForm.phone
+      })
+      .eq('id', user.id)
+  }
+
+  const demoUserStr = localStorage.getItem('agrilink_user')
+  if (demoUserStr) {
+    const demoUser = JSON.parse(demoUserStr)
+    demoUser.user_metadata = updatedProfile
+    localStorage.setItem('agrilink_user', JSON.stringify(demoUser))
+  }
+
+  setIsEditingAccount(false)
+  setAccountMessage('Changes saved successfully!')
+  setTimeout(() => setAccountMessage(''), 3000)
+}
 
   // Updated handleExpressInterest function - only sends once per harvest
   const handleExpressInterest = async (harvest: any) => {
