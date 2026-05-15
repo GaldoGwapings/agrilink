@@ -18,7 +18,7 @@ const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
     const fetchBuyers = async () => {
       setLoading(true)
       const { data, error } = await supabase
-        .from('buyer_interests')
+        .from('notifications')
         .select('*')
         .eq('farmer_id', farmerId)
         .order('created_at', { ascending: false })
@@ -30,7 +30,7 @@ const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
 
   const markCompleted = async (id: string) => {
     const { error } = await supabase
-      .from('buyer_interests')
+      .from('notifications')
       .update({ status: 'completed' })
       .eq('id', id)
     if (!error) {
@@ -78,9 +78,9 @@ const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
                 </span>
               </div>
               <div className="flex-1 space-y-3">
-                <p className="text-sm text-[#5B6D44]"><strong>Product:</strong> {buyer.product}</p>
-                <p className="text-sm text-[#5B6D44]"><strong>Date Ordered:</strong> {new Date(buyer.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                <p className="text-sm text-[#5B6D44]"><strong>Location:</strong> {buyer.location}</p>
+                <span className="font-black text-xl text-[#1A2E05]">{buyer.buyer_name}</span>
+                <p className="text-sm text-[#5B6D44]"><strong>Product:</strong> {buyer.crop_type} — {buyer.quantity} {buyer.unit}</p>
+                <p className="text-sm text-[#5B6D44]"><strong>Date:</strong> {new Date(buyer.created_at).toLocaleDateString('en-PH')}</p>
               </div>
               {buyer.status === 'new' && (
                 <div className="pt-4 mt-6 border-t border-[#F1F4E8]">
