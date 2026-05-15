@@ -369,12 +369,15 @@ export default function BuyerDashboard() {
             >
               <Menu className="w-6 h-6 text-[#1A2E05]" />
             </button>
-            <div className="hidden sm:flex items-center gap-2">
-              <div className="bg-[#4D7C0F] p-1.5 rounded-lg">
-                <Sprout className="text-white w-5 h-5" />
-              </div>
-              <span className="font-black text-[#1A2E05] text-xl">AgriLink</span>
-            </div>
+            <button
+  onClick={() => setActiveView('marketplace')}
+  className="hidden sm:flex items-center gap-2 hover:opacity-80 transition-opacity"
+>
+  <div className="bg-[#4D7C0F] p-1.5 rounded-lg">
+    <Sprout className="text-white w-5 h-5" />
+  </div>
+  <span className="font-black text-[#1A2E05] text-xl">AgriLink</span>
+</button>
           </div>
 
           <div className="flex items-center gap-4 mr-13">
