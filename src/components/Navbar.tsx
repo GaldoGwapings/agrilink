@@ -22,7 +22,6 @@ export default function Navbar({ user: propUser }: NavbarProps) {
       if (user) {
         setCurrentUser(user)
         
-        // Fetch profile from profiles table
         const { data: profileData } = await supabase
           .from('profiles')
           .select('*')
@@ -32,7 +31,6 @@ export default function Navbar({ user: propUser }: NavbarProps) {
         if (profileData) {
           setProfile(profileData)
         } else {
-          // Fallback to user metadata
           setProfile({
             full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
             role: user.user_metadata?.role || 'farmer'
@@ -77,17 +75,21 @@ export default function Navbar({ user: propUser }: NavbarProps) {
 
   return (
     <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#E5EAD7] shadow-sm">
-      <div className="max-w-7xl mx-auto px-6 lg:px-16">
+      <div className="max-w-8xl mx-auto px-4 lg:px-7">
         <div className="flex items-center justify-between h-20">
-          {/* Logo */}
-          <Link to={currentUser ? (userRole === 'farmer' ? '/farmer/home' : '/buyer/home') : '/'} className="flex items-center gap-2 group">
+
+          {/* LEFT SIDE: AgriLink Logo */}
+          <Link
+            to={currentUser ? (userRole === 'farmer' ? '/farmer' : '/buyer') : '/'}
+            className="flex items-center gap-2 group"
+          >
             <div className="bg-[#4D7C0F] p-2 rounded-xl group-hover:scale-105 transition-transform">
               <Sprout className="w-6 h-6 text-white" />
             </div>
             <span className="text-2xl font-black text-[#1A2E05] tracking-tight">AgriLink</span>
           </Link>
 
-          {/* Desktop Navigation */}
+          {/* RIGHT SIDE: Nav links + Sign In button (or user info when logged in) */}
           <div className="hidden md:flex items-center gap-6">
             {currentUser && navLinks.map((link) => (
               <Link
@@ -99,9 +101,9 @@ export default function Navbar({ user: propUser }: NavbarProps) {
                 {link.label}
               </Link>
             ))}
-            
+
             {currentUser ? (
-              <div className="flex items-center gap-4 ml-4 pl-4 border-l border-[#E5EAD7]">
+              <div className="flex items-center gap-4 pl-4 border-l border-[#E5EAD7]">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-[#ECFCCB] flex items-center justify-center">
                     <User className="w-5 h-5 text-[#4D7C0F]" />
@@ -156,7 +158,7 @@ export default function Navbar({ user: propUser }: NavbarProps) {
                 <span className="font-medium">{link.label}</span>
               </Link>
             ))}
-            
+
             {currentUser ? (
               <>
                 <div className="flex items-center gap-3 px-4 py-3 border-t border-[#E5EAD7] mt-2 pt-4">

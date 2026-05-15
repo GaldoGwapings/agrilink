@@ -1,4 +1,4 @@
-const GROQ_API_KEY = 'your_groq_key_here'
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 export interface ParsedHarvestData {
@@ -8,6 +8,7 @@ export interface ParsedHarvestData {
   unit: string
   price: number
   province: string
+  municipality: string
   barangay: string
   targetDate: string
   description: string
@@ -81,6 +82,7 @@ Return this exact JSON format:
       price: parsed.price || 0,
       province: parsed.province || '',
       barangay: parsed.barangay || '',
+      municipality: parsed.municipality || '',
       targetDate: parsed.targetDate || '',
       description: description,
       confidence: parsed.confidence || 0.5
@@ -209,7 +211,7 @@ Respond helpfully about harvest registration, finding buyers, market prices, and
 function getFallbackParsedData(description: string): ParsedHarvestData {
   return {
     cropName: '', category: 'Vegetables', quantity: 0,
-    unit: 'kg', price: 0, province: '', barangay: '',
+    unit: 'kg', price: 0, province: '', barangay: '', municipality:'',
     targetDate: '', description: description, confidence: 0
   }
 }

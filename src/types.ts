@@ -1,41 +1,63 @@
 export interface User {
   id: string
-  name: string
+  full_name?: string
+  name?: string
   email?: string
   phone?: string
-  region: string
-  role: 'farmer' | 'buyer'
+  region?: string
+  role: 'farmer' | 'buyer' | 'logistics' | 'admin'
+  location?: string
+  avatar_url?: string
+  created_at?: string
 }
 
 export interface Harvest {
   id: string
-  farmerId: string
-  cropName: string
-  cropType?: string
+  farmer_id: string
+  crop_type: string
   category: string
   quantity: number
   unit: string
-  price: number
-  pricePerUnit?: number
-  province: string
+  price_per_unit?: number | null
+  province?: string
+  municipality?: string
   barangay?: string
-  harvestDate: string
+  harvest_date: string
   description?: string
-  status: 'available' | 'pending' | 'sold'
-  images?: string[]
-  imageUrl?: string
-  lat: number
-  lng: number
+  status?: 'active' | 'sold' | 'expired' | 'pending'
+  image_url?: string | null
+  lat?: number
+  lng?: number
+  created_at?: string
+  updated_at?: string
 }
 
 export interface BuyerLead {
-  id: string
-  buyerId: string
-  buyerName: string
-  harvestId: string
-  cropName: string
-  quantity: number
+  id: string | number
+  buyer_id?: string
+  buyer_name: string
+  harvest_id?: string
+  crop_name: string
+  quantity: number | string
+  location?: string
+  phone?: string
   message?: string
+  date?: string
   status: 'pending' | 'on_the_way' | 'completed'
-  createdAt: string
+  farmer_id?: string
+  created_at?: string
+}
+
+export interface HarvestFormData {
+  crop_type: string
+  category: string
+  quantity: number
+  unit: string
+  price_per_unit?: number | null
+  province: string
+  municipality?: string
+  barangay?: string
+  harvest_date: string
+  description?: string
+  image_url?: string | null
 }
