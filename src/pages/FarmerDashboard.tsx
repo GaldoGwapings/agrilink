@@ -128,7 +128,6 @@ const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
               </div>
               {buyer.status === 'new' && (
                 <div className="pt-4 mt-4 border-t border-[#F1F4E8] space-y-2">
-                  {/* Confirm Order — sends real-time notification to buyer */}
                   <button
                     onClick={() => handleConfirmOrder(buyer)}
                     disabled={confirming === buyer.id}
@@ -141,7 +140,6 @@ const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
                     )}
                     Confirm Order
                   </button>
-                  {/* Mark completed without notifying */}
                   <button
                     onClick={() => markCompleted(buyer.id)}
                     className="w-full py-2.5 bg-white border border-[#4D7C0F] text-[#4D7C0F] text-sm font-bold rounded-2xl hover:bg-[#F1F4E8] transition-colors"
@@ -212,7 +210,6 @@ export default function FarmerDashboard() {
 
     fetchNotifications()
 
-    // Real-time: auto-update when new notification arrives
     const channel = supabase
       .channel('farmer-notifications-' + user.id)
       .on('postgres_changes', {
@@ -229,7 +226,6 @@ export default function FarmerDashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [user])
 
-  // ── Mark all notifications as read (updates both UI and DB) ──
   const markNotificationsRead = async () => {
     setShowNotificationMenu(prev => !prev)
     if (unreadCount === 0) return
@@ -253,7 +249,6 @@ export default function FarmerDashboard() {
   const [aiRecommendation, setAiRecommendation] = useState<any>(null)
   const [historySearch, setHistorySearch] = useState('')
 
-  // ── Load user session ──
   useEffect(() => {
     const loadUser = async () => {
       setLoadingUser(true)
@@ -288,18 +283,16 @@ export default function FarmerDashboard() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // ── Update account form when profile loads ──
   useEffect(() => {
     if (profile || user) {
       setAccountForm({
-        name: profile?.full_name || user?.user_metadata?.full_name || user?.full_name || 'Farmer',
+        name: profile?.full_name || user?.user_metadata?.full_name || 'Farmer',
         location: profile?.location || profile?.province || user?.user_metadata?.location || 'Bukidnon',
         phone: profile?.phone || user?.phone || ''
       })
     }
   }, [profile, user])
 
-  // ── Close notification menu on outside click ──
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
@@ -310,7 +303,6 @@ export default function FarmerDashboard() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  // ── Fetch harvests from Supabase ──
   const fetchHarvests = async (userId: string) => {
     setLoadingHarvests(true)
     const { data, error } = await supabase
@@ -340,7 +332,6 @@ export default function FarmerDashboard() {
     }
   }, [user])
 
-  // ── CRUD handlers ──
   const handleAddHarvest = async (newHarvest: any) => {
     if (!user?.id) return
 
@@ -456,13 +447,29 @@ export default function FarmerDashboard() {
       phone: accountForm.phone
     }
     setProfile(updatedProfile)
+    
+    // 1. Update internal auth metadata
     await supabase.auth.updateUser({ data: updatedProfile })
+    
+    // 2. IMPORTANT: Update the public profiles table so buyers can pull this data!
+    if (user?.id) {
+      await supabase
+        .from('profiles')
+        .update({ 
+          full_name: accountForm.name, 
+          location: accountForm.location, 
+          phone: accountForm.phone 
+        })
+        .eq('id', user.id)
+    }
+
     const demoUserStr = localStorage.getItem('agrilink_user')
     if (demoUserStr) {
       const demoUser = JSON.parse(demoUserStr)
       demoUser.user_metadata = updatedProfile
       localStorage.setItem('agrilink_user', JSON.stringify(demoUser))
     }
+    
     setIsEditingAccount(false)
     setAccountMessage('Changes saved successfully!')
     setTimeout(() => setAccountMessage(''), 3000)
@@ -734,7 +741,7 @@ export default function FarmerDashboard() {
                   onClick={() => { setActiveView('account'); setIsSidebarOpen(false) }}
                   className={cn(
                     "flex items-center gap-3 px-4 py-4 rounded-2xl font-bold w-full transition-all",
-                    activeView === 'account' ? "bg-[#F1F4E8] text-[#4D7C0F] shadow-sm" : "text-[#5B6D44] hover:bg-gray-50"
+                    activeView === 'account' ? "bg-[#F1F4E8] text-[#4D7C0F] shadow-sm" : "text-[#5B6D44 hover:bg-gray-50"
                   )}
                 >
                   <UserIcon className="w-5 h-5" /> Account

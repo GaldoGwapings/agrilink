@@ -336,55 +336,64 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
           <label className="block text-sm font-bold text-[#1A2E05] mb-2">
             Crop Type <span className="text-red-500">*</span>
           </label>
-          <input
-            type="text"
-            value={formData.crop_type}
-            onChange={(e) => setFormData({ ...formData, crop_type: e.target.value })}
-            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
-            placeholder="e.g., Rice, Corn, Tomato"
-            required
-          />
+          <div className="w-full">
+            <input
+              type="text"
+              value={formData.crop_type}
+              onChange={(e) => setFormData({ ...formData, crop_type: e.target.value })}
+              className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+              placeholder="e.g., Rice, Corn, Tomato"
+              required
+            />
+          </div>
         </div>
 
         <div className="md:col-span-2">
           <label className="block text-sm font-bold text-[#1A2E05] mb-2">Category</label>
-          <select
-            value={formData.category}
-            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
-          >
-            <option value="Vegetables">Vegetables</option>
-            <option value="Fruits">Fruits</option>
-            <option value="Grains & Rice">Grains & Rice</option>
-            <option value="Root Crops">Root Crops</option>
-            <option value="Spices">Spices</option>
-            <option value="Poultry & Eggs">Poultry & Eggs</option>
-          </select>
+          <div className="w-full">
+            <select
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+            >
+              <option value="Vegetables">Vegetables</option>
+              <option value="Fruits">Fruits</option>
+              <option value="Grains & Rice">Grains & Rice</option>
+              <option value="Root Crops">Root Crops</option>
+              <option value="Spices">Spices</option>
+              <option value="Poultry & Eggs">Poultry & Eggs</option>
+            </select>
+          </div>
         </div>
 
+        {/* Separated Quantity and Unit inside their own divs to break CSS overrides */}
         <div>
           <label className="block text-sm font-bold text-[#1A2E05] mb-2">
-            Quantity <span className="text-red-500">*</span>
+            Quantity & Unit <span className="text-red-500">*</span>
           </label>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              value={formData.quantity}
-              onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-              className="flex-1 px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
-              placeholder="Amount"
-              required
-            />
-            <select
-              value={formData.unit}
-              onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-              className="w-28 px-3 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
-            >
-              <option value="kg">kg</option>
-              <option value="sacks">sacks</option>
-              <option value="cavan">cavan</option>
-              <option value="pieces">pieces</option>
-            </select>
+          <div className="flex gap-4 w-full">
+            <div className="flex-1">
+              <input
+                type="number"
+                value={formData.quantity}
+                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+                placeholder="Amount"
+                required
+              />
+            </div>
+            <div className="w-32 shrink-0">
+              <select
+                value={formData.unit}
+                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+              >
+                <option value="kg">kg</option>
+                <option value="sacks">sacks</option>
+                <option value="cavan">cavan</option>
+                <option value="pieces">pieces</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -392,91 +401,103 @@ export default function HarvestForm({ onSuccess, initialData, isEdit }: HarvestF
           <label className="block text-sm font-bold text-[#1A2E05] mb-2">
             Price per {formData.unit} (PHP)
           </label>
-          <input
-            type="number"
-            step="0.01"
-            value={formData.price_per_unit}
-            onChange={(e) => setFormData({ ...formData, price_per_unit: e.target.value })}
-            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
-            placeholder="0.00"
-          />
+          <div className="w-full">
+            <input
+              type="number"
+              step="0.01"
+              value={formData.price_per_unit}
+              onChange={(e) => setFormData({ ...formData, price_per_unit: e.target.value })}
+              className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+              placeholder="0.00"
+            />
+          </div>
         </div>
 
         <div className="md:col-span-2">
           <label className="block text-sm font-bold text-[#1A2E05] mb-2">
             Province <span className="text-red-500">*</span>
           </label>
-          <select
-            value={formData.province}
-            onChange={handleProvinceChange}
-            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
-            required
-          >
-            <option value="" disabled>Select Province</option>
-            {MINDANAO_PROVINCES.map(province => (
-              <option key={province} value={province}>{province}</option>
-            ))}
-          </select>
+          <div className="w-full">
+            <select
+              value={formData.province}
+              onChange={handleProvinceChange}
+              className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+              required
+            >
+              <option value="" disabled>Select Province</option>
+              {MINDANAO_PROVINCES.map(province => (
+                <option key={province} value={province}>{province}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div>
           <label className="block text-sm font-bold text-[#1A2E05] mb-2">
             Municipality/City <span className="text-red-500">*</span>
           </label>
-          <select
-            value={formData.municipality}
-            onChange={handleMunicipalityChange}
-            disabled={!formData.province}
-            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none disabled:opacity-60"
-            required
-          >
-            <option value="" disabled>Select Municipality/City</option>
-            {municipalities.map(muni => (
-              <option key={muni} value={muni}>{muni}</option>
-            ))}
-          </select>
+          <div className="w-full">
+            <select
+              value={formData.municipality}
+              onChange={handleMunicipalityChange}
+              disabled={!formData.province}
+              className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none disabled:opacity-60"
+              required
+            >
+              <option value="" disabled>Select Municipality/City</option>
+              {municipalities.map(muni => (
+                <option key={muni} value={muni}>{muni}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div>
           <label className="block text-sm font-bold text-[#1A2E05] mb-2">
             Barangay <span className="text-red-500">*</span>
           </label>
-          <select
-            value={formData.barangay}
-            onChange={(e) => setFormData({ ...formData, barangay: e.target.value })}
-            disabled={!formData.municipality}
-            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none disabled:opacity-60"
-            required
-          >
-            <option value="" disabled>Select Barangay</option>
-            {barangays.map(brgy => (
-              <option key={brgy} value={brgy}>{brgy}</option>
-            ))}
-          </select>
+          <div className="w-full">
+            <select
+              value={formData.barangay}
+              onChange={(e) => setFormData({ ...formData, barangay: e.target.value })}
+              disabled={!formData.municipality}
+              className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none disabled:opacity-60"
+              required
+            >
+              <option value="" disabled>Select Barangay</option>
+              {barangays.map(brgy => (
+                <option key={brgy} value={brgy}>{brgy}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div>
           <label className="block text-sm font-bold text-[#1A2E05] mb-2">
             Expected Harvest Date <span className="text-red-500">*</span>
           </label>
-          <input
-            type="date"
-            value={formData.harvest_date}
-            onChange={(e) => setFormData({ ...formData, harvest_date: e.target.value })}
-            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
-            required
-          />
+          <div className="w-full">
+            <input
+              type="date"
+              value={formData.harvest_date}
+              onChange={(e) => setFormData({ ...formData, harvest_date: e.target.value })}
+              className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+              required
+            />
+          </div>
         </div>
 
         <div className="md:col-span-2">
           <label className="block text-sm font-bold text-[#1A2E05] mb-2">Additional Notes</label>
-          <textarea
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            rows={3}
-            className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
-            placeholder="Any additional information about your harvest..."
-          />
+          <div className="w-full">
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows={3}
+              className="w-full px-4 py-3 bg-[#FDFCF8] border border-[#E5EAD7] rounded-xl focus:ring-2 focus:ring-[#4D7C0F] outline-none"
+              placeholder="Any additional information about your harvest..."
+            />
+          </div>
         </div>
       </div>
 
