@@ -1,4 +1,4 @@
-import { useState, useEffect} from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Sprout, Sparkles, X, LogOut, Menu, User as UserIcon, 
@@ -22,10 +22,9 @@ const DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon
 
-// Restrict map strictly to Mindanao
 const MINDANAO_BOUNDS = L.latLngBounds(
-  L.latLng(4.8, 119.0), // Southwest corner
-  L.latLng(10.6, 126.8) // Northeast corner
+  L.latLng(4.8, 119.0),
+  L.latLng(10.6, 126.8)
 )
 
 const MINDANAO_PROVINCES = [
@@ -35,7 +34,7 @@ const MINDANAO_PROVINCES = [
   "Maguindanao del Norte", "Maguindanao del Sur", "Misamis Occidental", "Misamis Oriental",
   "Sarangani", "South Cotabato", "Sultan Kudarat", "Sulu", "Surigao del Norte",
   "Surigao del Sur", "Tawi-Tawi", "Zamboanga del Norte", "Zamboanga del Sur", "Zamboanga Sibugay"
-].sort();
+].sort()
 
 export default function BuyerDashboard() {
   const [user, setUser] = useState<any | null>(null)
@@ -46,8 +45,9 @@ export default function BuyerDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [activeView, setActiveView] = useState<'marketplace' | 'map' | 'account'>('marketplace')
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
+  const [isMinimized, setIsMinimized] = useState(false)
 
-  // Custom Dropdown State for ensuring downwards opening
+  // Custom Dropdown State
   const [openDropdown, setOpenDropdown] = useState<'category' | 'region' | 'mapFilter' | null>(null)
 
   // Account Editing States
@@ -100,8 +100,8 @@ export default function BuyerDashboard() {
   // Harvest Map Filter States
   const [mapFilter, setMapFilter] = useState('All')
   const mapCategories = ["All", "Vegetables", "Fruits", "Grains & Rice", "Root Crops", "Spices", "Poultry & Eggs"]
-  
-  const filteredMapHarvests = harvests.filter(h => 
+
+  const filteredMapHarvests = harvests.filter(h =>
     mapFilter === 'All' || h.category === mapFilter
   )
 
@@ -110,9 +110,16 @@ export default function BuyerDashboard() {
   const [chatLog, setChatLog] = useState([
     {
       role: 'ai',
-      text: 'Kumusta! Ako si Ani. Bilang buyer, matutulungan kita mahanap ng pinakamababang presyo ng mga pananim. Anong gulay o prutas ang hinahanap mo ngayon?',
+      text: 'Kumusta! Ako si Ani. Matutulungan kita mahanap ng mga available na pananim mula sa aming mga verified farmers. Anong hinahanap mo ngayon?',
     },
   ])
+
+  // Auto-scroll ref
+  const chatEndRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatLog])
 
   // Handle clicking outside custom dropdowns
   useEffect(() => {
@@ -182,49 +189,44 @@ export default function BuyerDashboard() {
   }
 
   const handleSaveAccount = async () => {
-  const updatedProfile = { 
-    ...profile, 
-    full_name: accountForm.name, 
-    location: accountForm.location, 
-    phone: accountForm.phone 
+    const updatedProfile = {
+      ...profile,
+      full_name: accountForm.name,
+      location: accountForm.location,
+      phone: accountForm.phone
+    }
+    setProfile(updatedProfile)
+
+    await supabase.auth.updateUser({ data: updatedProfile })
+
+    if (user?.id) {
+      await supabase
+        .from('profiles')
+        .update({
+          full_name: accountForm.name,
+          location: accountForm.location,
+          phone: accountForm.phone
+        })
+        .eq('id', user.id)
+    }
+
+    const demoUserStr = localStorage.getItem('agrilink_user')
+    if (demoUserStr) {
+      const demoUser = JSON.parse(demoUserStr)
+      demoUser.user_metadata = updatedProfile
+      localStorage.setItem('agrilink_user', JSON.stringify(demoUser))
+    }
+
+    setIsEditingAccount(false)
+    setAccountMessage('Changes saved successfully!')
+    setTimeout(() => setAccountMessage(''), 3000)
   }
-  setProfile(updatedProfile)
 
-  // Save to Supabase auth metadata
-  await supabase.auth.updateUser({ data: updatedProfile })
-
-  // Save to profiles table
-  if (user?.id) {
-    await supabase
-      .from('profiles')
-      .update({ 
-        full_name: accountForm.name,
-        location: accountForm.location,
-        phone: accountForm.phone
-      })
-      .eq('id', user.id)
-  }
-
-  const demoUserStr = localStorage.getItem('agrilink_user')
-  if (demoUserStr) {
-    const demoUser = JSON.parse(demoUserStr)
-    demoUser.user_metadata = updatedProfile
-    localStorage.setItem('agrilink_user', JSON.stringify(demoUser))
-  }
-
-  setIsEditingAccount(false)
-  setAccountMessage('Changes saved successfully!')
-  setTimeout(() => setAccountMessage(''), 3000)
-}
-
-  // Updated handleExpressInterest function - only sends once per harvest
   const handleExpressInterest = async (harvest: any) => {
     const id = harvest.id
     const alreadyInterested = interestedIds.includes(id)
-    
-    if (alreadyInterested) return // Do nothing if already sent
+    if (alreadyInterested) return
 
-    // Optimistically update UI
     setInterestedIds(prev => [...prev, id])
 
     const buyerName = profile?.full_name || user?.user_metadata?.full_name || user?.full_name || 'A buyer'
@@ -246,70 +248,69 @@ export default function BuyerDashboard() {
 
     if (error) {
       console.error('Failed to send notification:', error)
-      // Revert UI if insert failed
       setInterestedIds(prev => prev.filter(i => i !== id))
-    } else {
-      console.log('Interest notification sent to farmer')
     }
   }
 
   const handleSendAi = async (e: React.FormEvent) => {
-  e.preventDefault()
-  if (!aiMessage.trim()) return
+    e.preventDefault()
+    if (!aiMessage.trim()) return
 
-  const newLog = [...chatLog, { role: 'user', text: aiMessage }]
-  setChatLog(newLog)
-  setAiMessage('')
+    const newLog = [...chatLog, { role: 'user', text: aiMessage }]
+    setChatLog(newLog)
+    setAiMessage('')
+    setChatLog([...newLog, { role: 'ai', text: '...' }])
 
-  setChatLog([...newLog, { role: 'ai', text: '...' }])
+    // Format available harvests for AI context
+    const harvestContext = harvests.length > 0
+      ? harvests.map(h =>
+          `- ${h.crop_type} | ${h.quantity} ${h.unit} | ₱${h.price_per_unit}/${h.unit} | ${h.barangay}, ${h.municipality}, ${h.province} | Farmer: ${h.profiles?.full_name || 'Unknown'} | Harvest date: ${h.harvest_date || 'TBD'}`
+        ).join('\n')
+      : 'Walang available na harvests ngayon.'
 
-  // Format available harvests for AI context
-  const harvestContext = harvests.length > 0
-    ? harvests.map(h => 
-        `- ${h.crop_type} | ${h.quantity} ${h.unit} | ₱${h.price_per_unit}/${h.unit} | ${h.barangay}, ${h.province} | Farmer: ${h.profiles?.full_name || 'Unknown'} | Phone: ${h.profiles?.phone || 'N/A'} | Harvest date: ${h.harvest_date || 'TBD'}`
-      ).join('\n')
-    : 'No harvests currently available.'
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            {
+              role: 'system',
+              content: `You are "Ani", a friendly AI agricultural assistant for AgriLink Philippines. You speak Taglish (mix of Tagalog and English).
 
-  try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          {
-            role: 'system',
-            content: `You are "Ani", a friendly AI agricultural assistant for AgriLink in the Philippines. You speak Taglish (mix of Tagalog and English). 
-
-IMPORTANT: You can ONLY suggest harvests from this current list. Do not make up or suggest harvests that are not listed here. If what the buyer wants is not available, say so honestly.
+STRICT RULES:
+1. ONLY recommend harvests from the CURRENTLY AVAILABLE HARVESTS list below. Never invent or suggest products not on this list.
+2. If what the buyer wants is NOT in the list, honestly tell them it's not available right now and suggest the closest available alternative if any.
+3. NEVER instruct the buyer to email, call, or message the farmer yourself — they can use the "Contact Farmer" button on the listing card to notify the farmer directly.
+4. Do NOT mention phone numbers or contact details. The buyer handles contact through the app.
+5. Keep responses short, clear, and friendly. Just present what's available from the list.
 
 CURRENTLY AVAILABLE HARVESTS:
-${harvestContext}
-
-Help the buyer find what they need from this list only. Include the farmer's name and phone number when recommending. Keep responses short and helpful.`
-          },
-          ...newLog
-            .filter(m => m.text !== '...')
-            .map(m => ({
-              role: m.role === 'ai' ? 'assistant' : 'user',
-              content: m.text
-            }))
-        ],
-        temperature: 0.5,
-        max_tokens: 400
+${harvestContext}`
+            },
+            ...newLog
+              .filter(m => m.text !== '...')
+              .map(m => ({
+                role: m.role === 'ai' ? 'assistant' : 'user',
+                content: m.text
+              }))
+          ],
+          temperature: 0.5,
+          max_tokens: 400
+        })
       })
-    })
 
-    const data = await response.json()
-    const reply = data.choices?.[0]?.message?.content || 'Pasensya na, may problema sa koneksyon. Subukan ulit!'
-    setChatLog([...newLog, { role: 'ai', text: reply }])
-  } catch (error) {
-    setChatLog([...newLog, { role: 'ai', text: 'Pasensya na, may problema sa koneksyon. Subukan ulit!' }])
+      const data = await response.json()
+      const reply = data.choices?.[0]?.message?.content || 'Pasensya na, may problema sa koneksyon. Subukan ulit!'
+      setChatLog([...newLog, { role: 'ai', text: reply }])
+    } catch (error) {
+      setChatLog([...newLog, { role: 'ai', text: 'Pasensya na, may problema sa koneksyon. Subukan ulit!' }])
+    }
   }
-}
 
   const filteredHarvests = harvests.filter(h => {
     const cropType = h.crop_type || ''
@@ -317,8 +318,8 @@ Help the buyer find what they need from this list only. Include the farmer's nam
     const farmerName = h.profiles?.full_name || ''
 
     const matchSearch = cropType.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        province.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        farmerName.toLowerCase().includes(searchQuery.toLowerCase())
+      province.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      farmerName.toLowerCase().includes(searchQuery.toLowerCase())
 
     const matchCategory = marketCategory === 'All Categories' || h.category === marketCategory
     const matchRegion = marketRegion === 'All Regions' || province.includes(marketRegion)
@@ -353,45 +354,88 @@ Help the buyer find what they need from this list only. Include the farmer's nam
               exit={{ opacity: 0, y: 20, scale: 0.95 }}
               className="w-80 bg-white rounded-2xl shadow-2xl border border-[#E5EAD7] overflow-hidden flex flex-col"
             >
-              <div className="bg-[#4D7C0F] px-4 py-3 flex justify-between items-center text-white">
-                <span className="font-bold flex items-center gap-2"><Sparkles className="w-4 h-4" /> Ani Assistant</span>
-                <button onClick={() => setIsAIChatOpen(false)} className="hover:bg-white/20 p-1 rounded-md transition-colors"><X className="w-4 h-4" /></button>
-              </div>
-              <div className="p-4 bg-gray-50 flex-1 h-80 overflow-y-auto space-y-3">
-                {chatLog.map((msg, idx) => (
-                  <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
-                        msg.role === 'user'
-                          ? 'bg-[#4D7C0F] text-white rounded-br-none'
-                          : 'bg-white border border-[#E5EAD7] text-[#1A2E05] rounded-bl-none'
-                      }`}
-                    >
-                      {msg.text}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="p-3 bg-white border-t border-[#E5EAD7]">
-                <form onSubmit={handleSendAi} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={aiMessage}
-                    onChange={e => setAiMessage(e.target.value)}
-                    placeholder="Ask about crops..."
-                    className="flex-1 border border-[#E5EAD7] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#4D7C0F] bg-[#F7F9F2]"
-                  />
+              {/* Header */}
+              <div className="bg-[#4D7C0F] px-4 py-3 flex justify-between items-center text-white shrink-0">
+                <span className="font-bold flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" /> Ani Assistant
+                </span>
+                <div className="flex items-center gap-1">
+                  {/* Minimize / Expand */}
                   <button
-                    type="submit"
-                    disabled={!aiMessage.trim()}
-                    className="bg-[#4D7C0F] text-white px-3 rounded-xl hover:bg-[#3F6212] transition-colors disabled:opacity-50 font-bold text-sm"
+                    onClick={() => setIsMinimized(prev => !prev)}
+                    className="hover:bg-white/20 px-2 py-1 rounded-md transition-colors text-white font-bold text-xs leading-none"
+                    title={isMinimized ? 'Expand' : 'Minimize'}
                   >
-                    Send
+                    {isMinimized ? '▲' : '▼'}
                   </button>
-                </form>
+                  {/* Close */}
+                  <button
+                    onClick={() => { setIsAIChatOpen(false); setIsMinimized(false) }}
+                    className="hover:bg-white/20 p-1 rounded-md transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
+
+              {/* Collapsible body */}
+              <AnimatePresence initial={false}>
+                {!isMinimized && (
+                  <motion.div
+                    key="chat-body"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex flex-col overflow-hidden"
+                  >
+                    {/* Messages */}
+                    <div
+                      className="p-4 bg-gray-50 h-72 overflow-y-scroll space-y-3"
+                      style={{ scrollbarWidth: 'thin', scrollbarColor: '#4D7C0F #F1F4E8' }}
+                    >
+                      {chatLog.map((msg, idx) => (
+                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm whitespace-pre-wrap ${
+                            msg.role === 'user'
+                              ? 'bg-[#4D7C0F] text-white rounded-br-none'
+                              : 'bg-white border border-[#E5EAD7] text-[#1A2E05] rounded-bl-none'
+                          }`}>
+                            {msg.text}
+                          </div>
+                        </div>
+                      ))}
+                      {/* Auto-scroll anchor */}
+                      <div ref={chatEndRef} />
+                    </div>
+
+                    {/* Input */}
+                    <div className="p-3 bg-white border-t border-[#E5EAD7] shrink-0">
+                      <form onSubmit={handleSendAi} className="flex gap-2">
+                        <input
+                          type="text"
+                          value={aiMessage}
+                          onChange={e => setAiMessage(e.target.value)}
+                          placeholder="Ask about crops..."
+                          className="flex-1 border border-[#E5EAD7] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#4D7C0F] bg-[#F7F9F2]"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!aiMessage.trim()}
+                          className="bg-[#4D7C0F] text-white px-3 rounded-xl hover:bg-[#3F6212] transition-colors disabled:opacity-50 font-bold text-sm"
+                        >
+                          Send
+                        </button>
+                      </form>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* FAB Button */}
         <button
           onClick={() => setIsAIChatOpen(!isAIChatOpen)}
           className="w-14 h-14 bg-gradient-to-r from-[#4D7C0F] to-[#7CB342] text-white rounded-full flex items-center justify-center shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:scale-105 transition-transform"
@@ -411,14 +455,14 @@ Help the buyer find what they need from this list only. Include the farmer's nam
               <Menu className="w-6 h-6 text-[#1A2E05]" />
             </button>
             <button
-  onClick={() => setActiveView('marketplace')}
-  className="hidden sm:flex items-center gap-2 hover:opacity-80 transition-opacity"
->
-  <div className="bg-[#4D7C0F] p-1.5 rounded-lg">
-    <Sprout className="text-white w-5 h-5" />
-  </div>
-  <span className="font-black text-[#1A2E05] text-xl">AgriLink</span>
-</button>
+              onClick={() => setActiveView('marketplace')}
+              className="hidden sm:flex items-center gap-2 hover:opacity-80 transition-opacity"
+            >
+              <div className="bg-[#4D7C0F] p-1.5 rounded-lg">
+                <Sprout className="text-white w-5 h-5" />
+              </div>
+              <span className="font-black text-[#1A2E05] text-xl">AgriLink</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-4 mr-13">
@@ -467,7 +511,7 @@ Help the buyer find what they need from this list only. Include the farmer's nam
 
               <div className="flex-1 flex flex-col p-4 gap-2 overflow-y-auto">
                 <button
-                  onClick={() => { setActiveView('marketplace'); setIsSidebarOpen(false); }}
+                  onClick={() => { setActiveView('marketplace'); setIsSidebarOpen(false) }}
                   className={cn(
                     "flex items-center gap-3 px-4 py-4 rounded-2xl font-bold transition-all",
                     activeView === 'marketplace' ? "bg-[#F1F4E8] text-[#4D7C0F] shadow-sm" : "text-[#5B6D44] hover:bg-gray-50"
@@ -476,7 +520,7 @@ Help the buyer find what they need from this list only. Include the farmer's nam
                   <Store className="w-5 h-5" /> Marketplace
                 </button>
                 <button
-                  onClick={() => { setActiveView('map'); setIsSidebarOpen(false); }}
+                  onClick={() => { setActiveView('map'); setIsSidebarOpen(false) }}
                   className={cn(
                     "flex items-center gap-3 px-4 py-4 rounded-2xl font-bold transition-all",
                     activeView === 'map' ? "bg-[#F1F4E8] text-[#4D7C0F] shadow-sm" : "text-[#5B6D44] hover:bg-gray-50"
@@ -488,7 +532,7 @@ Help the buyer find what they need from this list only. Include the farmer's nam
 
               <div className="p-4 border-t border-[#E5EAD7]">
                 <button
-                  onClick={() => { setActiveView('account'); setIsSidebarOpen(false); }}
+                  onClick={() => { setActiveView('account'); setIsSidebarOpen(false) }}
                   className={cn(
                     "flex items-center gap-3 px-4 py-4 rounded-2xl font-bold w-full transition-all",
                     activeView === 'account' ? "bg-[#F1F4E8] text-[#4D7C0F] shadow-sm" : "text-[#5B6D44] hover:bg-gray-50"
@@ -508,7 +552,6 @@ Help the buyer find what they need from this list only. Include the farmer's nam
         {/* Marketplace View */}
         {activeView === 'marketplace' && (
           <section className="space-y-8">
-            {/* HERO PANEL */}
             <div className="bg-[#4D7C0F] rounded-[32px] p-8 md:p-10 shadow-xl relative overflow-hidden flex flex-col justify-center gap-2 mb-8">
               <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
                 <Store className="w-64 h-64" />
@@ -529,11 +572,11 @@ Help the buyer find what they need from this list only. Include the farmer's nam
                   className="w-full pl-12 pr-4 py-3.5 bg-white border border-[#E5EAD7] rounded-2xl focus:ring-2 focus:ring-[#4D7C0F] outline-none text-[#1A2E05] font-medium shadow-sm"
                 />
               </div>
-              
+
               <div className="flex flex-col sm:flex-row gap-4">
                 {/* Categories Dropdown */}
                 <div className="relative custom-dropdown z-30">
-                  <button 
+                  <button
                     onClick={() => setOpenDropdown(openDropdown === 'category' ? null : 'category')}
                     className="w-full sm:w-auto px-6 py-3.5 bg-white border border-[#E5EAD7] rounded-2xl font-bold text-[#1A2E05] shadow-sm hover:bg-gray-50 flex items-center justify-between gap-3 transition-colors"
                   >
@@ -568,7 +611,7 @@ Help the buyer find what they need from this list only. Include the farmer's nam
 
                 {/* Regions Dropdown */}
                 <div className="relative custom-dropdown z-20">
-                  <button 
+                  <button
                     onClick={() => setOpenDropdown(openDropdown === 'region' ? null : 'region')}
                     className="w-full sm:w-auto px-6 py-3.5 bg-white border border-[#E5EAD7] rounded-2xl font-bold text-[#1A2E05] shadow-sm hover:bg-gray-50 flex items-center justify-between gap-3 transition-colors"
                   >
@@ -658,19 +701,19 @@ Help the buyer find what they need from this list only. Include the farmer's nam
                         </p>
 
                         {harvest.profiles?.phone && (
-                        <p className="text-sm text-[#5B6D44]">
-                        Contact: <strong className="text-[#1A2E05]">{harvest.profiles.phone}</strong>
-                        </p>
-                       )}
+                          <p className="text-sm text-[#5B6D44]">
+                            Contact: <strong className="text-[#1A2E05]">{harvest.profiles.phone}</strong>
+                          </p>
+                        )}
 
                         {harvest.description && (
-  <div className="p-3 bg-[#F1F4E8] rounded-2xl border border-[#E5EAD7]">
-    <p className="text-[10px] font-bold text-[#4D7C0F] uppercase tracking-wider mb-1">Description</p>
-    <p className="text-xs text-[#5B6D44] leading-relaxed line-clamp-3">
-      {harvest.description}
-    </p>
-  </div>
-)}
+                          <div className="p-3 bg-[#F1F4E8] rounded-2xl border border-[#E5EAD7]">
+                            <p className="text-[10px] font-bold text-[#4D7C0F] uppercase tracking-wider mb-1">Description</p>
+                            <p className="text-xs text-[#5B6D44] leading-relaxed line-clamp-3">
+                              {harvest.description}
+                            </p>
+                          </div>
+                        )}
 
                         <div className="grid grid-cols-2 gap-4 pb-4">
                           <div className="flex items-start gap-2 text-[#5B6D44]">
@@ -695,12 +738,12 @@ Help the buyer find what they need from this list only. Include the farmer's nam
                           onClick={() => handleExpressInterest(harvest)}
                           className={cn(
                             "w-full py-3 rounded-2xl text-sm font-bold transition-all shadow-sm flex items-center justify-center gap-2",
-                            isInterested 
-                              ? "bg-[#ECFCCB] text-[#4D7C0F] border border-[#4D7C0F]/20 hover:bg-[#D9F99D]" 
+                            isInterested
+                              ? "bg-[#ECFCCB] text-[#4D7C0F] border border-[#4D7C0F]/20 hover:bg-[#D9F99D]"
                               : "bg-[#4D7C0F] text-white hover:bg-[#3F6212]"
                           )}
                         >
-                          {isInterested ? <><CheckCircle className="w-4 h-4" /> Sent</> : 'Contact Farmer'}
+                          {isInterested ? <><CheckCircle className="w-4 h-4" /> Interested Sent</> : 'Contact Farmer'}
                         </button>
                       </div>
                     </div>
@@ -732,7 +775,7 @@ Help the buyer find what they need from this list only. Include the farmer's nam
               </div>
 
               <div className="relative custom-dropdown w-full md:w-56 z-30">
-                <button 
+                <button
                   onClick={() => setOpenDropdown(openDropdown === 'mapFilter' ? null : 'mapFilter')}
                   className="w-full pl-10 pr-4 py-3 bg-[#F1F4E8] border border-[#E5EAD7] rounded-xl font-bold text-[#1A2E05] text-sm flex items-center justify-between hover:bg-[#E5EAD7]/50 transition-colors"
                 >
@@ -768,10 +811,10 @@ Help the buyer find what they need from this list only. Include the farmer's nam
             </header>
 
             <div className="flex-1 relative rounded-[32px] overflow-hidden border border-[#E5EAD7] shadow-xl z-0">
-              <MapContainer 
-                center={[7.8, 124.3]} 
-                zoom={7} 
-                minZoom={7} 
+              <MapContainer
+                center={[7.8, 124.3]}
+                zoom={7}
+                minZoom={7}
                 maxBounds={MINDANAO_BOUNDS}
                 maxBoundsViscosity={1.0}
                 scrollWheelZoom={true}
@@ -854,15 +897,15 @@ Help the buyer find what they need from this list only. Include the farmer's nam
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-bold text-[#1A2E05] text-lg">Personal Information</h3>
                   {!isEditingAccount && (
-                    <button 
-                      onClick={() => setIsEditingAccount(true)} 
+                    <button
+                      onClick={() => setIsEditingAccount(true)}
                       className="text-sm font-bold text-[#4D7C0F] hover:underline"
                     >
                       Edit
                     </button>
                   )}
                 </div>
-                
+
                 {accountMessage && (
                   <p className="text-green-600 text-sm font-bold mb-4 bg-green-50 p-2 rounded-lg text-center">
                     {accountMessage}
@@ -873,47 +916,47 @@ Help the buyer find what they need from this list only. Include the farmer's nam
                   <div className="space-y-4">
                     <div>
                       <label className="block text-xs font-bold text-[#5B6D44] uppercase mb-1">Full Name</label>
-                      <input 
-                        type="text" 
-                        value={accountForm.name} 
-                        onChange={(e) => setAccountForm({...accountForm, name: e.target.value})} 
-                        className="w-full p-3 bg-white rounded-xl border border-[#E5EAD7] outline-none focus:ring-2 focus:ring-[#4D7C0F]" 
+                      <input
+                        type="text"
+                        value={accountForm.name}
+                        onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })}
+                        className="w-full p-3 bg-white rounded-xl border border-[#E5EAD7] outline-none focus:ring-2 focus:ring-[#4D7C0F]"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-[#5B6D44] uppercase mb-1">Location</label>
-                      <input 
-                        type="text" 
-                        value={accountForm.location} 
-                        onChange={(e) => setAccountForm({...accountForm, location: e.target.value})} 
-                        className="w-full p-3 bg-white rounded-xl border border-[#E5EAD7] outline-none focus:ring-2 focus:ring-[#4D7C0F]" 
+                      <input
+                        type="text"
+                        value={accountForm.location}
+                        onChange={(e) => setAccountForm({ ...accountForm, location: e.target.value })}
+                        className="w-full p-3 bg-white rounded-xl border border-[#E5EAD7] outline-none focus:ring-2 focus:ring-[#4D7C0F]"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-[#5B6D44] uppercase mb-1">Phone Number</label>
-                      <input 
-                        type="text" 
-                        value={accountForm.phone} 
-                        onChange={(e) => setAccountForm({...accountForm, phone: e.target.value})} 
-                        className="w-full p-3 bg-white rounded-xl border border-[#E5EAD7] outline-none focus:ring-2 focus:ring-[#4D7C0F]" 
+                      <input
+                        type="text"
+                        value={accountForm.phone}
+                        onChange={(e) => setAccountForm({ ...accountForm, phone: e.target.value })}
+                        className="w-full p-3 bg-white rounded-xl border border-[#E5EAD7] outline-none focus:ring-2 focus:ring-[#4D7C0F]"
                       />
                     </div>
                     <div className="flex gap-2 pt-2">
-                      <button 
-                        onClick={handleSaveAccount} 
+                      <button
+                        onClick={handleSaveAccount}
                         className="flex-1 py-3 bg-[#4D7C0F] text-white rounded-xl font-bold hover:bg-[#3F6212] transition-colors text-sm shadow-md"
                       >
                         Save Changes
                       </button>
-                      <button 
+                      <button
                         onClick={() => {
                           setAccountForm({
                             name: profile?.full_name || user?.user_metadata?.full_name || user?.full_name || 'Buyer',
                             location: profile?.location || profile?.province || user?.user_metadata?.location || 'Philippines',
                             phone: profile?.phone || user?.phone || ''
-                          });
-                          setIsEditingAccount(false);
-                        }} 
+                          })
+                          setIsEditingAccount(false)
+                        }}
                         className="flex-1 py-3 bg-white text-[#5B6D44] border border-[#E5EAD7] rounded-xl font-bold hover:bg-[#F1F4E8] transition-colors text-sm"
                       >
                         Cancel
