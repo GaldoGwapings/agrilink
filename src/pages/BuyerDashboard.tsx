@@ -66,7 +66,7 @@ export default function BuyerDashboard() {
     const fetchHarvests = async () => {
       const { data, error } = await supabase
         .from('harvests')
-        .select('*, profiles:farmer_id(full_name)')
+        .select('*, profiles:farmer_id(full_name, phone)')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
       if (!error && data) {
@@ -217,6 +217,7 @@ export default function BuyerDashboard() {
         buyer_id: buyerId,
         harvest_id: harvest.id,
         buyer_name: buyerName,
+        buyer_phone: profile?.phone || user?.user_metadata?.phone || '',
         crop_type: harvest.crop_type,
         quantity: String(harvest.quantity),
         unit: harvest.unit,
@@ -591,6 +592,12 @@ export default function BuyerDashboard() {
                         <p className="text-sm text-[#5B6D44] border-t border-[#E5EAD7] pt-3">
                           Farmer: <strong className="text-[#1A2E05]">{harvest.profiles?.full_name || 'Unknown'}</strong>
                         </p>
+
+                        {harvest.profiles?.phone && (
+                        <p className="text-sm text-[#5B6D44]">
+                        Contact: <strong className="text-[#1A2E05]">{harvest.profiles.phone}</strong>
+                        </p>
+                       )}
 
                         {harvest.description && (
   <div className="p-3 bg-[#F1F4E8] rounded-2xl border border-[#E5EAD7]">

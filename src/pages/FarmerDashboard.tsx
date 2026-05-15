@@ -116,6 +116,9 @@ const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
               <div className="flex-1 space-y-3">
                 <p className="text-sm text-[#5B6D44]"><strong>Product:</strong> {buyer.crop_type} — {buyer.quantity} {buyer.unit}</p>
                 <p className="text-sm text-[#5B6D44]"><strong>Date:</strong> {new Date(buyer.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                {buyer.buyer_phone && (
+               <p className="text-sm text-[#5B6D44]"><strong>Phone:</strong> {buyer.buyer_phone}</p>
+               )}
               </div>
               {buyer.status === 'new' && (
                 <div className="pt-4 mt-4 border-t border-[#F1F4E8] space-y-2">
