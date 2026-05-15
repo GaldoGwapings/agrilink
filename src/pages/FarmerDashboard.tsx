@@ -17,7 +17,7 @@ const VIEW_LABELS: Record<string, string> = {
 
 // ── INTERESTED BUYERS VIEW ──
 const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
-  const [filter, setFilter] = useState<'new' | 'completed' | 'all'>('new')
+  const [filter, setFilter] = useState<'new' | 'completed' | 'confirmed' | 'all'>('new')
   const [buyers, setBuyers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -30,7 +30,16 @@ const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
         .select('*')
         .eq('farmer_id', farmerId)
         .order('created_at', { ascending: false })
-      if (!error && data) setBuyers(data)
+      if (!error && data) {
+        const seen = new Set()
+        const unique = (data || []).filter((item: any) => {
+          const key = `${item.buyer_name}-${item.crop_type}`
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        setBuyers(unique)
+      }
       setLoading(false)
     }
     if (farmerId) fetchBuyers()
@@ -46,35 +55,16 @@ const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
     }
   }
 
-  // Confirm Order: mark completed + send real-time notification to buyer
   const handleConfirmOrder = async (buyer: any) => {
     setConfirming(buyer.id)
     try {
-      // 1. Mark as completed in buyer_interests
-      await supabase
-        .from('buyer_interests')
-        .update({ status: 'completed' })
+      const { error } = await supabase
+        .from('notifications')
+        .update({ status: 'confirmed' })
         .eq('id', buyer.id)
-
-      // 2. Insert a real-time notification for the buyer
-      const { error: notifError } = await supabase
-        .from('buyer_notifications')
-        .insert({
-          buyer_id: buyer.buyer_id,
-          farmer_id: farmerId,
-          harvest_id: buyer.harvest_id,
-          message: 'Your order has been confirmed by the farmer.',
-          type: 'order_confirmed',
-          is_read: false,
-          product: buyer.product,
-          farmer_name: buyer.farmer_name || null,
-          confirmed_at: new Date().toISOString(),
-        })
-
-      if (notifError) console.error('Notification error:', notifError)
-
-      // 3. Update UI
-      setBuyers(prev => prev.map(b => b.id === buyer.id ? { ...b, status: 'completed' } : b))
+      if (!error) {
+        setBuyers(prev => prev.map(b => b.id === buyer.id ? { ...b, status: 'confirmed' } : b))
+      }
     } catch (err) {
       console.error('Confirm order error:', err)
     } finally {
@@ -89,7 +79,7 @@ const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
       <div className="flex items-center justify-between border-b border-[#E5EAD7] pb-4">
         <h2 className="text-2xl font-black text-[#1A2E05]">Interested Buyers ({filtered.length})</h2>
         <div className="flex items-center bg-[#F1F4E8] p-1 rounded-xl">
-          {(['new', 'completed', 'all'] as const).map(tab => (
+          {(['new', 'confirmed', 'completed', 'all'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setFilter(tab)}
@@ -113,18 +103,19 @@ const InterestedBuyersView = ({ farmerId }: { farmerId: string }) => {
           {filtered.map(buyer => (
             <div key={buyer.id} className="group bg-white rounded-[32px] border border-[#E5EAD7] p-6 hover:shadow-xl transition-all flex flex-col h-full">
               <div className="flex justify-between items-start mb-4">
-                <span className="font-black text-xl text-[#1A2E05]">{buyer.contact_number}</span>
+                <span className="font-black text-xl text-[#1A2E05]">{buyer.buyer_name}</span>
                 <span className={cn(
                   "text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-widest",
-                  buyer.status === 'new' ? "bg-[#ECFCCB] text-[#4D7C0F]" : "bg-gray-100 text-gray-600"
+                  buyer.status === 'new' ? "bg-[#ECFCCB] text-[#4D7C0F]" :
+                  buyer.status === 'confirmed' ? "bg-blue-100 text-blue-600" :
+                  "bg-gray-100 text-gray-600"
                 )}>
                   {buyer.status}
                 </span>
               </div>
               <div className="flex-1 space-y-3">
-                <span className="font-black text-xl text-[#1A2E05]">{buyer.buyer_name}</span>
                 <p className="text-sm text-[#5B6D44]"><strong>Product:</strong> {buyer.crop_type} — {buyer.quantity} {buyer.unit}</p>
-                <p className="text-sm text-[#5B6D44]"><strong>Date:</strong> {new Date(buyer.created_at).toLocaleDateString('en-PH')}</p>
+                <p className="text-sm text-[#5B6D44]"><strong>Date:</strong> {new Date(buyer.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
               </div>
               {buyer.status === 'new' && (
                 <div className="pt-4 mt-4 border-t border-[#F1F4E8] space-y-2">
