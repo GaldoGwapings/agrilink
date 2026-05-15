@@ -261,8 +261,14 @@ export default function BuyerDashboard() {
   setChatLog(newLog)
   setAiMessage('')
 
-  // Show typing indicator
   setChatLog([...newLog, { role: 'ai', text: '...' }])
+
+  // Format available harvests for AI context
+  const harvestContext = harvests.length > 0
+    ? harvests.map(h => 
+        `- ${h.crop_type} | ${h.quantity} ${h.unit} | ₱${h.price_per_unit}/${h.unit} | ${h.barangay}, ${h.province} | Farmer: ${h.profiles?.full_name || 'Unknown'} | Phone: ${h.profiles?.phone || 'N/A'} | Harvest date: ${h.harvest_date || 'TBD'}`
+      ).join('\n')
+    : 'No harvests currently available.'
 
   try {
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -276,22 +282,29 @@ export default function BuyerDashboard() {
         messages: [
           {
             role: 'system',
-            content: `You are "Ani", a friendly AI agricultural assistant for AgriLink in the Philippines. You speak Taglish (mix of Tagalog and English). The user is a buyer looking for crops. Help them find harvests, understand prices, and connect with farmers. Keep responses short and helpful.`
+            content: `You are "Ani", a friendly AI agricultural assistant for AgriLink in the Philippines. You speak Taglish (mix of Tagalog and English). 
+
+IMPORTANT: You can ONLY suggest harvests from this current list. Do not make up or suggest harvests that are not listed here. If what the buyer wants is not available, say so honestly.
+
+CURRENTLY AVAILABLE HARVESTS:
+${harvestContext}
+
+Help the buyer find what they need from this list only. Include the farmer's name and phone number when recommending. Keep responses short and helpful.`
           },
-          ...newLog.filter(m => m.role !== 'ai' || m.text !== '...').map(m => ({
-            role: m.role === 'ai' ? 'assistant' : 'user',
-            content: m.text
-          })),
-          { role: 'user', content: aiMessage }
+          ...newLog
+            .filter(m => m.text !== '...')
+            .map(m => ({
+              role: m.role === 'ai' ? 'assistant' : 'user',
+              content: m.text
+            }))
         ],
-        temperature: 0.7,
-        max_tokens: 300
+        temperature: 0.5,
+        max_tokens: 400
       })
     })
 
     const data = await response.json()
     const reply = data.choices?.[0]?.message?.content || 'Pasensya na, may problema sa koneksyon. Subukan ulit!'
-
     setChatLog([...newLog, { role: 'ai', text: reply }])
   } catch (error) {
     setChatLog([...newLog, { role: 'ai', text: 'Pasensya na, may problema sa koneksyon. Subukan ulit!' }])
