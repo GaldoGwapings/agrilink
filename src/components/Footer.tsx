@@ -7,11 +7,10 @@ export default function Footer() {
     <footer className="bg-white border-t border-[#E5EAD7] pt-16 pb-8">
       <div className="container mx-auto px-4">
 
-        {/* Center: AgriLink brand + Contact Us side by side */}
-        <div className="grid grid-cols-2 gap-16 max-w-3xl mx-auto mb-16">
+        <div className="grid grid-cols-2 gap-16 max-w-3xl mx-auto mb-16 items-start justify-items-center">
 
           {/* AgriLink brand */}
-          <div className="space-y-6 max-w-xs">
+          <div className="space-y-6 max-w-xs flex flex-col items-center text-center">
             <Link to="/" className="flex items-center gap-2">
               <div className="w-10 h-10 bg-[#4D7C0F] rounded-xl flex items-center justify-center text-white shadow-lg shadow-[#4D7C0F]/20">
                 <Leaf className="w-6 h-6" />
@@ -55,7 +54,7 @@ export default function Footer() {
 
         </div>
 
-        {/* Bottom bar — copyright centered */}
+        {/* Bottom bar */}
         <div className="pt-8 border-t border-[#F1F4E8] flex flex-col items-center gap-4 text-xs text-[#5B6D44] font-medium">
           <p>© 2026 AgriLink Philippines. All rights reserved.</p>
           <div className="flex gap-6">
