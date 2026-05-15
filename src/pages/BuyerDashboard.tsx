@@ -253,22 +253,50 @@ export default function BuyerDashboard() {
     }
   }
 
-  const handleSendAi = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!aiMessage.trim()) return
-    const newLog = [...chatLog, { role: 'user', text: aiMessage }]
-    setChatLog(newLog)
-    setAiMessage('')
-    setTimeout(() => {
-      setChatLog([
-        ...newLog,
-        {
-          role: 'ai',
-          text: 'May nakita akong available na harvest sa Bukidnon na angkop sa iyong hinihanap. Gusto mo bang i-connect kita sa farmer?',
-        },
-      ])
-    }, 1000)
+  const handleSendAi = async (e: React.FormEvent) => {
+  e.preventDefault()
+  if (!aiMessage.trim()) return
+
+  const newLog = [...chatLog, { role: 'user', text: aiMessage }]
+  setChatLog(newLog)
+  setAiMessage('')
+
+  // Show typing indicator
+  setChatLog([...newLog, { role: 'ai', text: '...' }])
+
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: `You are "Ani", a friendly AI agricultural assistant for AgriLink in the Philippines. You speak Taglish (mix of Tagalog and English). The user is a buyer looking for crops. Help them find harvests, understand prices, and connect with farmers. Keep responses short and helpful.`
+          },
+          ...newLog.filter(m => m.role !== 'ai' || m.text !== '...').map(m => ({
+            role: m.role === 'ai' ? 'assistant' : 'user',
+            content: m.text
+          })),
+          { role: 'user', content: aiMessage }
+        ],
+        temperature: 0.7,
+        max_tokens: 300
+      })
+    })
+
+    const data = await response.json()
+    const reply = data.choices?.[0]?.message?.content || 'Pasensya na, may problema sa koneksyon. Subukan ulit!'
+
+    setChatLog([...newLog, { role: 'ai', text: reply }])
+  } catch (error) {
+    setChatLog([...newLog, { role: 'ai', text: 'Pasensya na, may problema sa koneksyon. Subukan ulit!' }])
   }
+}
 
   const filteredHarvests = harvests.filter(h => {
     const cropType = h.crop_type || ''
