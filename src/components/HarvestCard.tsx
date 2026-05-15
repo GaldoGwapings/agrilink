@@ -21,8 +21,6 @@ export default function HarvestCard({ harvest, user, onDelete, onEdit, onSoldOut
   
   // If the status is sold, we hide the action buttons to treat it as History.
   const isSold = harvest.status === 'sold';
-  
-  console.log('Harvest object:', JSON.stringify(harvest, null, 2));
 
   // Helper functions to handle both camelCase and snake_case property names
   const getCropType = () => {
@@ -110,16 +108,24 @@ export default function HarvestCard({ harvest, user, onDelete, onEdit, onSoldOut
           </div>
 
           <div className="flex flex-col justify-center">
-            <div className="flex items-center gap-1.5 text-[#5B6D44]">
-              <MapPin className="w-3.5 h-3.5 text-[#4D7C0F]" />
-              <span className="text-[11px] font-medium truncate">{getBarangay()}, {getProvince()}</span>
+            <div className="flex items-start gap-1.5 text-[#5B6D44]">
+              <MapPin className="w-3.5 h-3.5 text-[#4D7C0F] shrink-0 mt-0.5" />
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold uppercase text-[#4D7C0F] hidden md:block">Location</span>
+                <span className="text-[11px] font-medium truncate">
+                  {getBarangay() ? `${getBarangay()}, ` : ''}{getProvince()}
+                </span>
+              </div>
             </div>
           </div>
 
           <div className="flex flex-col justify-center">
-            <div className="flex items-center gap-1.5 text-[#5B6D44]">
-              <Calendar className="w-3.5 h-3.5 text-[#4D7C0F]" />
-              <span className="text-[11px] font-medium">{formatDate(getHarvestDate())}</span>
+            <div className="flex items-start gap-1.5 text-[#5B6D44]">
+              <Calendar className="w-3.5 h-3.5 text-[#4D7C0F] shrink-0 mt-0.5" />
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold uppercase text-[#4D7C0F] hidden md:block">Target Date</span>
+                <span className="text-[11px] font-medium">{formatDate(getHarvestDate())}</span>
+              </div>
             </div>
           </div>
 
@@ -204,19 +210,21 @@ export default function HarvestCard({ harvest, user, onDelete, onEdit, onSoldOut
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center gap-2 text-[#5B6D44]">
-              <MapPin className="w-4 h-4 text-[#4D7C0F]" />
-              <div className="flex flex-col">
+          <div className="flex justify-between gap-2 w-full">
+            <div className="flex items-start gap-1.5 text-[#5B6D44] flex-1 overflow-hidden pr-2">
+              <MapPin className="w-4 h-4 text-[#4D7C0F] shrink-0 mt-0.5" />
+              <div className="flex flex-col min-w-0">
                 <span className="text-[10px] font-bold uppercase text-[#4D7C0F]">Location</span>
-                <span className="text-xs truncate">{getBarangay()}, {getProvince()}</span>
+                <span className="text-xs leading-tight truncate">
+                  {getBarangay() ? `${getBarangay()}, ` : ''}{getProvince()}
+                </span>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-[#5B6D44]">
-              <Calendar className="w-4 h-4 text-[#4D7C0F]" />
+            <div className="flex items-start gap-1.5 text-[#5B6D44] shrink-0">
+              <Calendar className="w-4 h-4 text-[#4D7C0F] shrink-0 mt-0.5" />
               <div className="flex flex-col">
                 <span className="text-[10px] font-bold uppercase text-[#4D7C0F]">Target Date</span>
-                <span className="text-xs">{formatDate(getHarvestDate())}</span>
+                <span className="text-xs leading-tight">{formatDate(getHarvestDate())}</span>
               </div>
             </div>
           </div>
@@ -263,7 +271,7 @@ export default function HarvestCard({ harvest, user, onDelete, onEdit, onSoldOut
 
         {isBuyer && (
           <div className="pt-4 border-t border-[#F1F4E8]">
-            <div className="flex items-center justify-center gap-2 text-[10px] font-black text-[#4D7C0F] uppercase tracking-widest transition-all">
+            <div className="flex items-center justify-center gap-2 text-[10px] font-black text-[#4D7C0F] uppercase tracking-widest transition-all group-hover:text-[#3F6212]">
               Click for Details <ChevronDown className="w-3 h-3 group-hover:animate-bounce" />
             </div>
           </div>

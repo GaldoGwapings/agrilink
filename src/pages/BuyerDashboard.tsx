@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Sprout, Sparkles, X, LogOut, Menu, User as UserIcon, 
-  MapPin, Calendar, Store, Map as MapIcon, Search, Image as ImageIcon, CheckCircle, ChevronDown, Navigation, Filter
+  MapPin, Calendar, Store, Map as MapIcon, Search, Image as ImageIcon, CheckCircle, ChevronDown, Navigation, Filter, Bell, History
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { supabase } from '../lib/supabase'
@@ -37,6 +37,62 @@ const MINDANAO_PROVINCES = [
   "Surigao del Sur", "Tawi-Tawi", "Zamboanga del Norte", "Zamboanga del Sur", "Zamboanga Sibugay"
 ].sort();
 
+// Mock available harvests from farmers
+const AVAILABLE_HARVESTS = [
+  {
+    id: 'h-1',
+    category: 'Grains & Rice',
+    crop: 'Yellow Corn',
+    farmer: 'Juan Dela Cruz',
+    contact: '0912 345 6789',
+    qty: '50 Sacks (Kaban)',
+    date: '5/20/2026',
+    province: 'Sumilao, Bukidnon',
+    status: 'Available',
+    price: '₱1200',
+    imageUrl: null
+  },
+  {
+    id: 'h-2',
+    category: 'Grains & Rice',
+    crop: 'Palay (Rice)',
+    farmer: 'Pedro Santos',
+    contact: '0998 765 4321',
+    qty: '120 Sacks (Kaban)',
+    date: '5/25/2026',
+    province: 'Binalonan, Pangasinan',
+    status: 'Pending',
+    price: '₱1100',
+    imageUrl: null
+  },
+  {
+    id: 'h-3',
+    category: 'Vegetables',
+    crop: 'Red Onions',
+    farmer: 'Maria Cruz',
+    contact: '0915 123 4567',
+    qty: '2 Metric Tons',
+    date: '5/15/2026',
+    province: 'Bongabon, Nueva Ecija',
+    status: 'Available',
+    price: '₱45000',
+    imageUrl: null
+  },
+  {
+    id: 'h-4',
+    category: 'Vegetables',
+    crop: 'Tomatoes',
+    farmer: 'Roberto Reyes',
+    contact: '0922 888 9999',
+    qty: '800 kg',
+    date: '5/18/2026',
+    province: 'Tupi, South Cotabato',
+    status: 'Available',
+    price: '₱45',
+    imageUrl: null
+  },
+]
+
 export default function BuyerDashboard() {
   const [user, setUser] = useState<any | null>(null)
   const [profile, setProfile] = useState<any | null>(null)
@@ -44,11 +100,17 @@ export default function BuyerDashboard() {
 
   // Navigation & UI States
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const [activeView, setActiveView] = useState<'marketplace' | 'map' | 'account'>('marketplace')
+  const [activeView, setActiveView] = useState<'marketplace' | 'map' | 'order_history' | 'account'>('marketplace')
   const [isAIChatOpen, setIsAIChatOpen] = useState(false)
 
   // Custom Dropdown State for ensuring downwards opening
   const [openDropdown, setOpenDropdown] = useState<'category' | 'region' | 'mapFilter' | null>(null)
+
+  // Notifications State
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [showNotificationMenu, setShowNotificationMenu] = useState(false)
+  const notificationRef = useRef<HTMLDivElement>(null)
 
   // Account Editing States
   const [isEditingAccount, setIsEditingAccount] = useState(false)
@@ -61,18 +123,19 @@ export default function BuyerDashboard() {
 
   // Harvests from Supabase
   const [harvests, setHarvests] = useState<any[]>([])
+  const [orderHistory, setOrderHistory] = useState<any[]>([])
 
   useEffect(() => {
     const fetchHarvests = async () => {
       const { data, error } = await supabase
         .from('harvests')
-        .select('*, profiles:farmer_id(full_name)')
+        // Updated query to also fetch the farmer's phone number
+        .select('*, profiles:farmer_id(full_name, phone)')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
       if (!error && data) {
-  console.log('First harvest:', JSON.stringify(data[0], null, 2))
-  setHarvests(data)
-}
+        setHarvests(data)
+      }
     }
     fetchHarvests()
   }, [])
@@ -83,7 +146,7 @@ export default function BuyerDashboard() {
   const [marketRegion, setMarketRegion] = useState('All Regions')
   const [interestedIds, setInterestedIds] = useState<string[]>([])
 
-  // Load which harvests this buyer has already contacted
+  // Fetch interests and notifications for this buyer
   useEffect(() => {
     if (!user) return
     const fetchInterests = async () => {
@@ -95,8 +158,66 @@ export default function BuyerDashboard() {
         setInterestedIds(data.map((n: any) => n.harvest_id))
       }
     }
+
+    const fetchNotifications = async () => {
+      const { data, error } = await supabase
+        .from('buyer_notifications')
+        .select('*')
+        .eq('buyer_id', user.id)
+        .order('created_at', { ascending: false })
+      if (!error && data) {
+        setNotifications(data)
+        setUnreadCount(data.filter((n: any) => !n.is_read).length)
+      }
+    }
+
     fetchInterests()
+    fetchNotifications()
+
+    // Real-time listener for new order confirmations
+    const channel = supabase
+      .channel('buyer-notifications-' + user.id)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'buyer_notifications',
+        filter: `buyer_id=eq.${user.id}`
+      }, (payload) => {
+        setNotifications(prev => [payload.new, ...prev])
+        setUnreadCount(prev => prev + 1)
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [user])
+
+  // Fetch Order History when view changes
+  useEffect(() => {
+    if (user && activeView === 'order_history') {
+      const fetchOrders = async () => {
+        const { data } = await supabase
+          .from('buyer_notifications')
+          .select('*')
+          .eq('buyer_id', user.id)
+          .eq('type', 'order_confirmed')
+          .order('created_at', { ascending: false })
+        if (data) setOrderHistory(data)
+      }
+      fetchOrders()
+    }
+  }, [user, activeView])
+
+  const markNotificationsRead = async () => {
+    setShowNotificationMenu(prev => !prev)
+    if (unreadCount === 0) return
+    setUnreadCount(0)
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+    await supabase
+      .from('buyer_notifications')
+      .update({ is_read: true })
+      .eq('buyer_id', user.id)
+      .eq('is_read', false)
+  }
 
   // Harvest Map Filter States
   const [mapFilter, setMapFilter] = useState('All')
@@ -120,6 +241,9 @@ export default function BuyerDashboard() {
     const handleClickOutside = (e: MouseEvent) => {
       if (!(e.target as Element).closest('.custom-dropdown')) {
         setOpenDropdown(null)
+      }
+      if (notificationRef.current && !notificationRef.current.contains(e.target as Node)) {
+        setShowNotificationMenu(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -224,12 +348,23 @@ export default function BuyerDashboard() {
         is_read: false
       })
 
+    // Also record into buyer_interests for the farmer's Interested Buyers dashboard
+    await supabase
+      .from('buyer_interests')
+      .insert({
+        farmer_id: harvest.farmer_id,
+        buyer_id: buyerId,
+        harvest_id: harvest.id,
+        contact_number: profile?.phone || user?.phone || 'Not provided',
+        product: `${harvest.quantity} ${harvest.unit} of ${harvest.crop_type}`,
+        location: profile?.location || profile?.province || 'Philippines',
+        status: 'new'
+      })
+
     if (error) {
       console.error('Failed to send notification:', error)
       // Revert UI if insert failed
       setInterestedIds(prev => prev.filter(i => i !== id))
-    } else {
-      console.log('Interest notification sent to farmer')
     }
   }
 
@@ -250,7 +385,7 @@ export default function BuyerDashboard() {
     }, 1000)
   }
 
-  const filteredHarvests = harvests.filter(h => {
+  const filteredHarvests = harvests.length > 0 ? harvests.filter(h => {
     const cropType = h.crop_type || ''
     const province = h.province || ''
     const farmerName = h.profiles?.full_name || ''
@@ -262,6 +397,14 @@ export default function BuyerDashboard() {
     const matchCategory = marketCategory === 'All Categories' || h.category === marketCategory
     const matchRegion = marketRegion === 'All Regions' || province.includes(marketRegion)
 
+    return matchSearch && matchCategory && matchRegion
+  }) : AVAILABLE_HARVESTS.filter(h => {
+    // Fallback search logic for mock data if DB is empty
+    const matchSearch = h.crop.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        h.province.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        h.farmer.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchCategory = marketCategory === 'All Categories' || h.category === marketCategory
+    const matchRegion = marketRegion === 'All Regions' || h.province.includes(marketRegion)
     return matchSearch && matchCategory && matchRegion
   })
 
@@ -339,9 +482,9 @@ export default function BuyerDashboard() {
         </button>
       </div>
 
-      {/* ── HEADER ── */}
+      {/* ── ALIGNED HEADER WITH CLICKABLE PRIMARY BRAND ELEMENT ── */}
       <header className="bg-white border-b border-[#E5EAD7] sticky top-0 z-40 shadow-sm w-full">
-        <div className="max-w-[1600px] mx-auto px-6 lg:px-10 py-4 flex items-center justify-between">
+        <div className="max-w-[1400px] mx-auto px-6 lg:px-10 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsSidebarOpen(true)}
@@ -349,15 +492,85 @@ export default function BuyerDashboard() {
             >
               <Menu className="w-6 h-6 text-[#1A2E05]" />
             </button>
-            <div className="hidden sm:flex items-center gap-2">
+            <button 
+              onClick={() => setActiveView('marketplace')}
+              className="hidden sm:flex items-center gap-2 hover:opacity-80 transition-opacity text-left"
+            >
               <div className="bg-[#4D7C0F] p-1.5 rounded-lg">
                 <Sprout className="text-white w-5 h-5" />
               </div>
               <span className="font-black text-[#1A2E05] text-xl">AgriLink</span>
-            </div>
+            </button>
           </div>
 
-          <div className="flex items-center gap-4 mr-13">
+          <div className="flex items-center gap-4 mr-8">
+            {/* ── Notifications Bell ── */}
+            <div className="relative" ref={notificationRef}>
+              <button
+                onClick={markNotificationsRead}
+                className="p-2 relative hover:bg-gray-100 rounded-lg text-[#5B6D44] transition-colors"
+              >
+                <Bell className="w-6 h-6" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 border border-white rounded-full flex items-center justify-center text-[10px] text-white font-bold">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+              <AnimatePresence>
+                {showNotificationMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
+                    className="absolute right-0 mt-2 w-80 bg-white border border-[#E5EAD7] shadow-2xl rounded-2xl overflow-hidden z-50 origin-top-right"
+                  >
+                    <div className="bg-gray-50 border-b border-[#E5EAD7] px-4 py-3 flex justify-between items-center">
+                      <h4 className="font-bold text-[#1A2E05] text-sm">Notifications ({notifications.length})</h4>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); markNotificationsRead() }}
+                          className="text-xs font-bold text-[#4D7C0F] hover:underline"
+                        >
+                          Read all
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                      {notifications.length > 0 ? notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          onClick={() => {
+                            setActiveView('order_history');
+                            setShowNotificationMenu(false);
+                          }}
+                          className={cn(
+                            "p-4 transition-colors cursor-pointer flex gap-3 items-start border-b border-gray-50 last:border-0",
+                            !n.is_read ? "bg-white hover:bg-gray-50" : "bg-gray-50 opacity-70"
+                          )}
+                        >
+                          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                            <CheckCircle className="w-4 h-4 text-green-700" />
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <p className="text-[#1A2E05] text-sm font-bold">{n.farmer_name || 'A Farmer'}</p>
+                            <p className="text-[#5B6D44] text-sm leading-snug">
+                              has confirmed your order for {n.product}.
+                            </p>
+                            <p className="text-[10px] text-gray-400 mt-1">
+                              {new Date(n.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+                      )) : (
+                        <div className="p-6 text-center text-sm text-gray-500">No notifications yet.</div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             <button
               onClick={() => setActiveView('account')}
               className="flex items-center gap-3 hover:bg-gray-50 p-1.5 rounded-xl transition-colors"
@@ -371,7 +584,7 @@ export default function BuyerDashboard() {
         </div>
       </header>
 
-      {/* ── SIDE DRAWER ── */}
+      {/* ── COLLAPSIBLE SIDE DRAWER ── */}
       <AnimatePresence>
         {isSidebarOpen && (
           <>
@@ -420,6 +633,15 @@ export default function BuyerDashboard() {
                 >
                   <MapIcon className="w-5 h-5" /> Harvest Map
                 </button>
+                <button
+                  onClick={() => { setActiveView('order_history'); setIsSidebarOpen(false); }}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-4 rounded-2xl font-bold transition-all",
+                    activeView === 'order_history' ? "bg-[#F1F4E8] text-[#4D7C0F] shadow-sm" : "text-[#5B6D44] hover:bg-gray-50"
+                  )}
+                >
+                  <History className="w-5 h-5" /> Order History
+                </button>
               </div>
 
               <div className="p-4 border-t border-[#E5EAD7]">
@@ -438,13 +660,12 @@ export default function BuyerDashboard() {
         )}
       </AnimatePresence>
 
-      {/* ── MAIN CONTENT ── */}
+      {/* ── MAIN CONTENT AREA ── */}
       <div className="max-w-[1400px] mx-auto px-6 lg:px-10 py-10 space-y-10">
 
         {/* Marketplace View */}
         {activeView === 'marketplace' && (
           <section className="space-y-8">
-            {/* HERO PANEL */}
             <div className="bg-[#4D7C0F] rounded-[32px] p-8 md:p-10 shadow-xl relative overflow-hidden flex flex-col justify-center gap-2 mb-8">
               <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
                 <Store className="w-64 h-64" />
@@ -453,7 +674,6 @@ export default function BuyerDashboard() {
               <p className="text-white/80 font-medium relative z-10">Connect with verified farmers and secure your supply in advance.</p>
             </div>
 
-            {/* Search and Filters */}
             <div className="flex flex-col md:flex-row gap-4 mb-8">
               <div className="relative flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5B6D44] w-5 h-5" />
@@ -467,7 +687,6 @@ export default function BuyerDashboard() {
               </div>
               
               <div className="flex flex-col sm:flex-row gap-4">
-                {/* Categories Dropdown */}
                 <div className="relative custom-dropdown z-30">
                   <button 
                     onClick={() => setOpenDropdown(openDropdown === 'category' ? null : 'category')}
@@ -502,7 +721,6 @@ export default function BuyerDashboard() {
                   </AnimatePresence>
                 </div>
 
-                {/* Regions Dropdown */}
                 <div className="relative custom-dropdown z-20">
                   <button 
                     onClick={() => setOpenDropdown(openDropdown === 'region' ? null : 'region')}
@@ -548,17 +766,15 @@ export default function BuyerDashboard() {
               </div>
             </div>
 
-            {/* Grid of Cards */}
             {filteredHarvests.length > 0 ? (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {filteredHarvests.map(harvest => {
                   const isInterested = interestedIds.includes(harvest.id)
                   const displayDate = harvest.harvest_date
-                    ? new Date(harvest.harvest_date).toLocaleDateString()
-                    : 'N/A'
+                    ? new Date(harvest.harvest_date).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+                    : harvest.date || 'N/A'
                   return (
                     <div key={harvest.id} className="group bg-white rounded-[32px] border border-[#E5EAD7] p-6 hover:shadow-xl transition-all flex flex-col h-full z-0">
-                      {/* Product Image */}
                       <div className="w-full h-40 bg-[#F1F4E8] rounded-2xl mb-5 flex items-center justify-center overflow-hidden shrink-0 border border-[#E5EAD7]">
                         {harvest.image_url ? (
                           <img src={harvest.image_url} alt={harvest.crop_type} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
@@ -567,11 +783,10 @@ export default function BuyerDashboard() {
                         )}
                       </div>
 
-                      {/* Status and Category Tags */}
                       <div className="flex items-center justify-between mb-4">
                         <span className={cn(
                           "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest",
-                          harvest.status === 'active' ? "bg-[#ECFCCB] text-[#4D7C0F]" : "bg-yellow-100 text-yellow-800"
+                          harvest.status === 'active' || harvest.status === 'Available' ? "bg-[#ECFCCB] text-[#4D7C0F]" : "bg-yellow-100 text-yellow-800"
                         )}>
                           {harvest.status}
                         </span>
@@ -582,37 +797,47 @@ export default function BuyerDashboard() {
 
                       <div className="flex-1 space-y-4">
                         <div className="space-y-1">
-                          <p className="text-[10px] font-bold text-[#A16207] uppercase tracking-widest">{harvest.crop_type}</p>
-                          <div className="flex justify-between items-end">
-                            <h3 className="text-2xl font-black text-[#1A2E05] leading-none">{harvest.quantity} {harvest.unit}</h3>
-                            <p className="text-xl font-black text-[#4D7C0F]">₱{harvest.price_per_unit ?? '—'}</p>
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="text-[10px] font-bold text-[#A16207] uppercase tracking-widest">{harvest.crop_type || harvest.crop}</p>
+                              <h3 className="text-2xl font-black text-[#1A2E05] leading-none mt-1">{harvest.quantity || harvest.qty} {harvest.unit || ''}</h3>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-2xl font-black text-[#4D7C0F]">{harvest.price_per_unit ? `₱${harvest.price_per_unit}` : harvest.price}</p>
+                            </div>
                           </div>
                         </div>
 
-                        <p className="text-sm text-[#5B6D44] border-t border-[#E5EAD7] pt-3">
-                          Farmer: <strong className="text-[#1A2E05]">{harvest.profiles?.full_name || 'Unknown'}</strong>
-                        </p>
+                        {/* Add Contact Number and Farmer Name block */}
+                        <div className="border-t border-[#E5EAD7] pt-3 space-y-1">
+                          <p className="text-sm text-[#5B6D44]">
+                            Farmer: <strong className="text-[#1A2E05]">{harvest.profiles?.full_name || harvest.farmer || 'Unknown'}</strong>
+                          </p>
+                          <p className="text-sm text-[#5B6D44]">
+                            Contact: <strong className="text-[#1A2E05]">{harvest.profiles?.phone || harvest.contact || 'Not provided'}</strong>
+                          </p>
+                        </div>
 
                         {harvest.description && (
-  <div className="p-3 bg-[#F1F4E8] rounded-2xl border border-[#E5EAD7]">
-    <p className="text-[10px] font-bold text-[#4D7C0F] uppercase tracking-wider mb-1">Description</p>
-    <p className="text-xs text-[#5B6D44] leading-relaxed line-clamp-3">
-      {harvest.description}
-    </p>
-  </div>
-)}
+                          <div className="p-3 bg-[#F1F4E8] rounded-2xl border border-[#E5EAD7]">
+                            <p className="text-[10px] font-bold text-[#4D7C0F] uppercase tracking-wider mb-1">Description</p>
+                            <p className="text-xs text-[#5B6D44] leading-relaxed line-clamp-3">
+                              {harvest.description}
+                            </p>
+                          </div>
+                        )}
 
-                        <div className="grid grid-cols-2 gap-4 pb-4">
-                          <div className="flex items-start gap-2 text-[#5B6D44]">
+                        <div className="flex justify-between gap-4 pb-4">
+                          <div className="flex items-start gap-2 text-[#5B6D44] flex-1">
                             <MapPin className="w-4 h-4 text-[#4D7C0F] shrink-0 mt-0.5" />
                             <div className="flex flex-col">
                               <span className="text-[10px] font-bold uppercase text-[#4D7C0F]">Location</span>
-                              <span className="text-xs leading-tight">{harvest.barangay}, {harvest.province}</span>
+                              <span className="text-xs leading-tight">{harvest.barangay ? `${harvest.barangay}, ` : ''}{harvest.province}</span>
                             </div>
                           </div>
-                          <div className="flex items-start gap-2 text-[#5B6D44]">
+                          <div className="flex items-start gap-2 text-[#5B6D44] shrink-0 text-right">
                             <Calendar className="w-4 h-4 text-[#4D7C0F] shrink-0 mt-0.5" />
-                            <div className="flex flex-col">
+                            <div className="flex flex-col text-left">
                               <span className="text-[10px] font-bold uppercase text-[#4D7C0F]">Target Date</span>
                               <span className="text-xs leading-tight">{displayDate}</span>
                             </div>
@@ -630,7 +855,7 @@ export default function BuyerDashboard() {
                               : "bg-[#4D7C0F] text-white hover:bg-[#3F6212]"
                           )}
                         >
-                          {isInterested ? <><CheckCircle className="w-4 h-4" /> Sent</> : 'Contact Farmer'}
+                          {isInterested ? <><CheckCircle className="w-4 h-4" /> Sent</> : 'Interested'}
                         </button>
                       </div>
                     </div>
@@ -645,6 +870,51 @@ export default function BuyerDashboard() {
                 <div className="space-y-1">
                   <p className="font-bold text-[#1A2E05] text-lg">No harvests found</p>
                   <p className="text-sm text-[#5B6D44]">Try adjusting your search or filters.</p>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Order History View */}
+        {activeView === 'order_history' && (
+          <section className="space-y-8">
+            <div className="bg-[#4D7C0F] rounded-[32px] p-8 md:p-10 shadow-xl relative overflow-hidden flex flex-col justify-center gap-2 mb-8">
+              <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
+                <History className="w-64 h-64" />
+              </div>
+              <h1 className="text-3xl md:text-4xl font-black text-white relative z-10">Order History</h1>
+              <p className="text-white/80 font-medium relative z-10">Track and review your confirmed harvest orders.</p>
+            </div>
+
+            {orderHistory.length > 0 ? (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {orderHistory.map(order => (
+                  <div key={order.id} className="p-6 bg-white rounded-[32px] border border-[#E5EAD7] hover:shadow-xl transition-all relative overflow-hidden flex flex-col">
+                    <div className="flex justify-between items-start mb-4">
+                      <span className="text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-widest bg-[#ECFCCB] text-[#4D7C0F]">
+                        Confirmed
+                      </span>
+                      <span className="text-xs font-bold text-[#5B6D44]">
+                        {new Date(order.confirmed_at || order.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <h3 className="text-xl font-black text-[#1A2E05]">{order.product}</h3>
+                      <p className="text-sm text-[#5B6D44]">Farmer: <strong className="text-[#1A2E05]">{order.farmer_name || 'Unknown'}</strong></p>
+                      <p className="text-sm text-[#5B6D44] italic">"{order.message}"</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-20 text-center space-y-4 bg-white border-2 border-dashed border-[#E5EAD7] rounded-3xl">
+                <div className="w-20 h-20 bg-[#F1F4E8] rounded-full flex items-center justify-center mx-auto">
+                  <History className="w-10 h-10 text-[#4D7C0F]/40" />
+                </div>
+                <div className="space-y-1">
+                  <p className="font-bold text-[#1A2E05] text-lg">No confirmed orders yet</p>
+                  <p className="text-sm text-[#5B6D44]">When a farmer confirms your interest, it will appear here.</p>
                 </div>
               </div>
             )}
@@ -742,8 +1012,7 @@ export default function BuyerDashboard() {
                 ))}
               </MapContainer>
 
-              {/* Map Legend */}
-              <div className="absolute bottom-6 left-6 z-30 bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-[#E5EAD7] shadow-lg space-y-3 hidden md:block">
+              <div className="absolute bottom-6 left-6 z-[1000] bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-[#E5EAD7] shadow-lg space-y-3 hidden md:block">
                 <p className="text-xs font-bold text-[#1A2E05] uppercase tracking-wider">Map Legend</p>
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
@@ -763,7 +1032,7 @@ export default function BuyerDashboard() {
           </section>
         )}
 
-        {/* Account View */}
+        {/* Account View (Editable) */}
         {activeView === 'account' && (
           <div className="bg-white rounded-[32px] shadow-xl border border-[#E5EAD7] max-w-2xl mx-auto overflow-hidden">
             <div className="bg-[#4D7C0F] p-8 text-white flex items-center gap-4 relative overflow-hidden">
